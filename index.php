@@ -9,7 +9,7 @@
 <body>
 
 <div class="brand">
-    <img src="assets/logo.svg" alt="ArcheryOps Judging">
+    <img src="assets/logo.png" alt="ArcheryOps Judging">
     <p class="subtitle">Validation de la formation d'arbitre assistant</p>
 </div>
 
