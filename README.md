@@ -1,4 +1,4 @@
-# QuizzArbitre
+# ArcheryOps Judging
 
 Application web PHP + JS pour créer des QCM et faire passer des questionnaires de validation de la formation d'arbitre assistant.
 

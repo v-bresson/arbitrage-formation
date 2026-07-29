@@ -46,6 +46,15 @@ a { color: var(--accent); }
     margin-top: 6px;
 }
 
+.brand img { height: 60px; width: auto; }
+
+.top-bar .brand img { height: 40px; }
+
+@media (max-width: 500px) {
+    .brand img { height: 44px; }
+    .top-bar .brand img { height: 32px; }
+}
+
 .page {
     width: 100%;
     max-width: 480px;

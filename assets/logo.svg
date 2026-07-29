@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 900" width="2000" height="900">
+  <defs>
+    <style>
+      .navy { fill: #0d1b3e; }
+      .blue { fill: #2f6fed; }
+      .orange { fill: #f5a623; }
+      .white { fill: #ffffff; }
+      .line { stroke: #ffffff; stroke-width: 6; fill: none; }
+      .lineblue { stroke: #2f6fed; stroke-width: 6; fill: none; }
+    </style>
+  </defs>
+
+  <rect class="navy" x="0" y="0" width="2000" height="900"/>
+
+  <!-- Circuit lines left of target -->
+  <g class="lineblue">
+    <line x1="150" y1="410" x2="290" y2="410"/>
+    <line x1="150" y1="460" x2="270" y2="460"/>
+    <line x1="150" y1="510" x2="250" y2="510"/>
+  </g>
+  <circle class="blue" cx="150" cy="410" r="12"/>
+  <circle class="blue" cx="150" cy="460" r="12"/>
+  <circle class="blue" cx="150" cy="510" r="12"/>
+
+  <!-- Arc de cercle décoratif -->
+  <path class="line" d="M 250 380 A 220 220 0 0 1 470 220"/>
+  <path class="line" d="M 250 550 A 220 220 0 0 0 470 690"/>
+  <circle class="white" cx="470" cy="220" r="12"/>
+  <circle class="white" cx="470" cy="690" r="12"/>
+
+  <!-- Cible (cercles concentriques) -->
+  <circle class="white" cx="460" cy="455" r="175"/>
+  <circle class="navy" cx="460" cy="455" r="150"/>
+  <circle class="blue" cx="460" cy="455" r="120"/>
+  <circle class="white" cx="460" cy="455" r="80"/>
+  <circle class="orange" cx="460" cy="455" r="45"/>
+
+  <!-- Flèche -->
+  <line class="line" x1="330" y1="590" x2="620" y2="300" stroke-width="10"/>
+  <path class="blue" d="M 620 300 L 700 220 L 650 320 L 720 290 L 620 300 Z"/>
+
+  <!-- Pixels décoratifs -->
+  <g>
+    <rect class="blue" x="820" y="480" width="22" height="22"/>
+    <rect class="orange" x="860" y="440" width="22" height="22"/>
+    <rect class="blue" x="900" y="480" width="22" height="22"/>
+    <rect class="orange" x="820" y="520" width="22" height="22"/>
+    <rect class="white" x="860" y="520" width="22" height="22"/>
+    <rect class="orange" x="900" y="520" width="22" height="22"/>
+    <rect class="blue" x="820" y="560" width="22" height="22"/>
+    <rect class="orange" x="900" y="560" width="22" height="22"/>
+  </g>
+
+  <!-- Texte -->
+  <text x="970" y="500" font-family="'Segoe UI', system-ui, sans-serif" font-size="105" font-weight="700" class="white">Archery<tspan class="orange">Ops</tspan></text>
+  <line class="lineblue" x1="970" y1="590" x2="1850" y2="590"/>
+  <text x="1700" y="660" font-family="'Segoe UI', system-ui, sans-serif" font-size="70" font-weight="400" class="white">Judging</text>
+</svg>

@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QuizzArbitre — Administration</title>
+<title>ArcheryOps Judging — Administration</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
 <!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
 <div id="setup-screen" class="page hidden">
-    <div class="brand"><h1>Quizz<span>Arbitre</span></h1><p class="subtitle">Première connexion admin — crée ton compte</p></div>
+    <div class="brand"><img src="../assets/logo.svg" alt="ArcheryOps Judging"><p class="subtitle">Première connexion admin — crée ton compte</p></div>
     <form class="panel" id="setup-form">
         <input type="text" id="setup-username-input" placeholder="Identifiant" autocomplete="username" required autofocus minlength="3">
         <input type="password" id="setup-password-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="new-password" required minlength="8">
@@ -22,7 +22,7 @@
 
 <!-- ================= ECRAN DE CONNEXION ================= -->
 <div id="login-screen" class="page hidden">
-    <div class="brand"><h1>Quizz<span>Arbitre</span></h1><p class="subtitle">Administration</p></div>
+    <div class="brand"><img src="../assets/logo.svg" alt="ArcheryOps Judging"><p class="subtitle">Administration</p></div>
     <form class="panel" id="login-form">
         <input type="text" id="username-input" placeholder="Identifiant" autocomplete="username" required autofocus>
         <input type="password" id="password-input" placeholder="Mot de passe" autocomplete="current-password" required>
@@ -36,7 +36,7 @@
 <div id="admin-screen" class="page wide hidden">
     <div class="top-bar">
         <div class="brand" style="text-align:left;margin-bottom:0;">
-            <h1 style="font-size:1.3rem;">Quizz<span>Arbitre</span> — Admin</h1>
+            <img src="../assets/logo.svg" alt="ArcheryOps Judging">
         </div>
         <div style="display:flex;gap:14px;align-items:center;">
             <div class="tabs">
@@ -164,7 +164,7 @@
     </div>
 </div>
 
-<footer>&copy; <span id="year"></span> QuizzArbitre — Administration</footer>
+<footer>&copy; <span id="year"></span> ArcheryOps Judging — Administration</footer>
 
 <script src="app.js"></script>
 </body>

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QuizzArbitre — Questionnaires</title>
+<title>ArcheryOps Judging — Questionnaires</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
 <div class="brand">
-    <h1>Quizz<span>Arbitre</span></h1>
+    <img src="assets/logo.svg" alt="ArcheryOps Judging">
     <p class="subtitle">Validation de la formation d'arbitre assistant</p>
 </div>
 
@@ -57,7 +57,7 @@
     </div>
 </div>
 
-<footer>&copy; <span id="year"></span> QuizzArbitre</footer>
+<footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
 
 <script>
 const screens = {
