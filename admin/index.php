@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuizzArbitre — Administration</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
+<div id="setup-screen" class="page hidden">
+    <div class="brand"><h1>Quizz<span>Arbitre</span></h1><p class="subtitle">Première connexion admin — crée ton compte</p></div>
+    <form class="panel" id="setup-form">
+        <input type="text" id="setup-username-input" placeholder="Identifiant" autocomplete="username" required autofocus minlength="3">
+        <input type="password" id="setup-password-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="new-password" required minlength="8">
+        <input type="password" id="setup-password-confirm-input" placeholder="Confirme le mot de passe" autocomplete="new-password" required minlength="8">
+        <button type="submit" id="setup-btn">Créer le compte admin</button>
+        <div class="msg error" id="setup-error"></div>
+    </form>
+</div>
+
+<!-- ================= ECRAN DE CONNEXION ================= -->
+<div id="login-screen" class="page hidden">
+    <div class="brand"><h1>Quizz<span>Arbitre</span></h1><p class="subtitle">Administration</p></div>
+    <form class="panel" id="login-form">
+        <input type="text" id="username-input" placeholder="Identifiant" autocomplete="username" required autofocus>
+        <input type="password" id="password-input" placeholder="Mot de passe" autocomplete="current-password" required>
+        <button type="submit" id="login-btn">Se connecter</button>
+        <div class="msg error" id="login-error"></div>
+    </form>
+    <p style="margin-top:16px;"><a href="../index.php">&larr; Retour à l'espace candidat</a></p>
+</div>
+
+<!-- ================= DASHBOARD ADMIN ================= -->
+<div id="admin-screen" class="page wide hidden">
+    <div class="top-bar">
+        <div class="brand" style="text-align:left;margin-bottom:0;">
+            <h1 style="font-size:1.3rem;">Quizz<span>Arbitre</span> — Admin</h1>
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;">
+            <div class="tabs">
+                <button type="button" class="tab-btn active" data-tab="questions">Questions</button>
+                <button type="button" class="tab-btn" data-tab="quizzes">Questionnaires</button>
+                <button type="button" class="tab-btn" data-tab="attempts">Résultats</button>
+            </div>
+            <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+        </div>
+    </div>
+
+    <!-- ---------- ONGLET QUESTIONS ---------- -->
+    <div id="tab-questions" class="tab-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" id="new-question-btn">+ Nouvelle question</button>
+                <button type="button" class="secondary" id="import-btn">Importer (CSV / XLSX)</button>
+            </div>
+            <select id="category-filter" style="max-width:220px;"><option value="">Toutes les catégories</option></select>
+        </div>
+        <div class="table-wrap panel" style="padding:0;">
+            <table>
+                <thead><tr><th>Catégorie</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Actif</th><th></th></tr></thead>
+                <tbody id="questions-tbody"></tbody>
+            </table>
+        </div>
+        <p class="msg" id="questions-msg"></p>
+    </div>
+
+    <!-- ---------- ONGLET QUESTIONNAIRES ---------- -->
+    <div id="tab-quizzes" class="tab-panel hidden">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+            <button type="button" id="new-quiz-btn">+ Nouveau questionnaire</button>
+        </div>
+        <div class="grid" id="quizzes-grid"></div>
+        <p class="msg" id="quizzes-msg"></p>
+    </div>
+
+    <!-- ---------- ONGLET RESULTATS ---------- -->
+    <div id="tab-attempts" class="tab-panel hidden">
+        <div class="table-wrap panel" style="padding:0;">
+            <table>
+                <thead><tr><th>Questionnaire</th><th>Candidat</th><th>Note</th><th>Résultat</th><th>Date</th></tr></thead>
+                <tbody id="attempts-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODALE QUESTION ================= -->
+<div id="question-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2 id="question-modal-title">Nouvelle question</h2>
+        <form id="question-form" style="display:flex;flex-direction:column;gap:12px;">
+            <input type="hidden" id="q-id">
+            <div class="field-row">
+                <div class="field"><label>Catégorie</label><input type="text" id="q-categorie" placeholder="Ex. Règlement, Sécurité..."></div>
+                <div class="field"><label>Points</label><input type="number" id="q-points" min="1" value="1"></div>
+            </div>
+            <div class="field"><label>Énoncé</label><textarea id="q-enonce" rows="3" required></textarea></div>
+            <div class="field-row">
+                <div class="field"><label>Réponse A</label><input type="text" id="q-a" required></div>
+                <div class="field"><label>Réponse B</label><input type="text" id="q-b" required></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Réponse C (optionnelle)</label><input type="text" id="q-c"></div>
+                <div class="field"><label>Réponse D (optionnelle)</label><input type="text" id="q-d"></div>
+            </div>
+            <div class="field">
+                <label>Bonne réponse</label>
+                <select id="q-bonne">
+                    <option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option>
+                </select>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="q-actif" style="width:auto;" checked> Question active</label>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="question-cancel-btn">Annuler</button>
+                <button type="submit" id="question-save-btn">Enregistrer</button>
+            </div>
+            <div class="msg error" id="question-modal-msg"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODALE IMPORT ================= -->
+<div id="import-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2>Importer des questions</h2>
+        <p class="modal-hint">
+            Fichier .csv ou .xlsx avec les colonnes : <code>categorie, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points</code>.
+            <code>bonne_reponse</code> doit valoir a, b, c ou d. <code>option_c</code>, <code>option_d</code> et <code>points</code> sont optionnels.
+        </p>
+        <form id="import-form" style="display:flex;flex-direction:column;gap:12px;">
+            <input type="file" id="import-file-input" accept=".csv,.xlsx" required>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="import-cancel-btn">Annuler</button>
+                <button type="submit" id="import-submit-btn">Importer</button>
+            </div>
+            <div class="msg" id="import-msg"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODALE QUESTIONNAIRE ================= -->
+<div id="quiz-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2 id="quiz-modal-title">Nouveau questionnaire</h2>
+        <form id="quiz-form" style="display:flex;flex-direction:column;gap:12px;">
+            <input type="hidden" id="qz-id">
+            <div class="field"><label>Nom</label><input type="text" id="qz-nom" required></div>
+            <div class="field"><label>Description</label><textarea id="qz-desc" rows="2"></textarea></div>
+            <div class="field"><label>Catégorie (laisser vide = toutes les catégories)</label><input type="text" id="qz-categorie"></div>
+            <div class="field-row">
+                <div class="field"><label>Nombre de questions</label><input type="number" id="qz-nombre" min="1" value="10" required></div>
+                <div class="field"><label>Note maximale</label><input type="number" id="qz-notemax" min="1" value="20" required></div>
+                <div class="field"><label>Seuil de réussite</label><input type="number" id="qz-seuil" min="0" value="10" required></div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-actif" style="width:auto;" checked> Questionnaire actif (visible côté candidat)</label>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="quiz-cancel-btn">Annuler</button>
+                <button type="submit" id="quiz-save-btn">Enregistrer</button>
+            </div>
+            <div class="msg error" id="quiz-modal-msg"></div>
+        </form>
+    </div>
+</div>
+
+<footer>&copy; <span id="year"></span> QuizzArbitre — Administration</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
