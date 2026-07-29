@@ -1,3 +1,11 @@
 categorie;enonce;option_a;option_b;option_c;option_d;bonne_reponse;points
-Règlement;Quel est le rôle de l'arbitre assistant sur la ligne de touche ?;Signaler les sorties de balle;Compter les points;Diriger l'échauffement;Arbitrer seul le match;a;1
-Sécurité;Que doit vérifier l'arbitre assistant avant le début du match ?;La météo du lendemain;L'état du terrain et des équipements de sécurité;Le classement de l'équipe adverse;Le score du match précédent;b;2
+Règlement;Combien de flèches un archer tire-t-il généralement par volée en compétition FITA/World Archery ?;2 flèches;3 flèches;5 flèches;6 flèches;b;1
+Règlement;Que signale l'arbitre lorsqu'une flèche touche la ligne entre deux zones de score ?;Le score le plus bas;Le score le plus haut;La flèche est nulle;Il faut retirer;b;2
+Scoring;Combien de points vaut le centre jaune (mouche) d'une cible World Archery à 10 zones ?;9 points;10 points;X uniquement;12 points;b;1
+Scoring;Une flèche rebondit sur la cible et tombe au sol sans laisser de trace : que décide l'arbitre assistant ?;0 point si constaté par les juges;Le tir est refait immédiatement;Score maximal par défaut;La flèche est comptée pour 5 points;a;2
+Sécurité;Que doit vérifier l'arbitre assistant avant le début d'une série de tir ?;Que la ligne de tir est dégagée et sécurisée;Que les archers ont mangé;Le score de la compétition précédente;Le classement national;a;2
+Sécurité;Quel signal utilise-t-on pour arrêter immédiatement un tir en cas de danger ?;Un coup de sifflet long;Un signal lumineux vert;Un drapeau blanc levé lentement;Aucun signal n'est nécessaire;a;2
+Matériel;Quel type d'arc n'utilise pas de viseur en compétition classique ?;Arc à poulies (compound);Arc classique (recurve) catégorie barebow;Arc classique avec viseur;Aucun arc n'a de viseur;b;1
+Matériel;Quelle vérification l'arbitre assistant peut-il effectuer sur le matériel avant une compétition ?;Le poids de traction de l'arc;La couleur de l'arc;La marque du carquois;La taille de l'archer;a;1
+Procédure;Qui note officiellement les scores annoncés par l'archer sur la feuille de marque ?;L'archer lui-même uniquement;Le juge/arbitre ou le marqueur désigné;Le public;Le directeur du tournoi uniquement;b;1
+Procédure;En cas de litige sur un score entre deux archers d'un même groupe, qui tranche en dernier ressort ?;Les archers votent;L'arbitre de la ligne;Le premier arrivé a raison;On ignore la flèche contestée;b;2
