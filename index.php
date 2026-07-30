@@ -78,6 +78,11 @@ async function checkSession() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'action=status',
         });
+        if (!statusRes.ok) {
+            const errData = await statusRes.json().catch(() => ({}));
+            if (errData.needs_install) { window.location.href = 'install.php'; return; }
+            throw new Error(errData.message || 'Erreur serveur');
+        }
         const statusData = await statusRes.json();
         if (!statusData.configured) {
             vm.subtitle = 'Première connexion — crée le compte administrateur';

@@ -47,26 +47,19 @@ Le nom d'utilisateur connecté sert directement d'identifiant candidat pour les 
 
 Prérequis : PHP 8+ avec les extensions `pdo_mysql` et `zip` (pour l'import `.xlsx`), et un serveur **MariaDB** (ou MySQL) accessible.
 
-1. Créer la base et un utilisateur dédié :
-   ```sql
-   CREATE DATABASE archeryops_judging CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   CREATE USER 'archeryops'@'%' IDENTIFIED BY 'un-mot-de-passe-solide';
-   GRANT ALL PRIVILEGES ON archeryops_judging.* TO 'archeryops'@'%';
-   FLUSH PRIVILEGES;
-   ```
-   Les tables (`users`, `tiles`, `questions`, `quizzes`, `tentatives`) sont créées automatiquement au premier appel à l'application (voir `includes/db.php`) — aucun script SQL à lancer à la main. Une tuile "Questionnaires" par défaut est créée automatiquement si la table `tiles` est vide.
-2. Copier `includes/db-config.sample.php` en `includes/db-config.php` et renseigner l'hôte, le nom de la base, l'utilisateur et le mot de passe. Ce fichier n'est pas versionné (voir `.gitignore`).
-   Alternative en conteneur/hébergement mutualisé : définir les variables d'environnement `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` (le fichier `db-config.php`, s'il existe, les complète/écrase).
-3. Déposer les fichiers sur un serveur PHP (Apache/Nginx + PHP-FPM, ou `php -S localhost:8000`).
-4. Le dossier `uploads/questions/` doit être accessible en écriture et servi publiquement (images jointes aux questions).
-5. Ouvrir `index.php` : le premier écran propose de créer le compte administrateur.
-6. Une fois connecté en admin, ajouter des questions (manuellement ou via import), créer un premier questionnaire, et éventuellement d'autres tuiles/utilisateurs depuis l'espace admin.
+1. Déposer les fichiers sur un serveur PHP (Apache/Nginx + PHP-FPM, ou `php -S localhost:8000`). Le dossier `includes/` doit être accessible en écriture par PHP (pour que l'assistant d'installation puisse y créer `db-config.php`), et `uploads/questions/` accessible en écriture et servi publiquement (images jointes aux questions).
+2. Ouvrir **`install.php`** : l'assistant d'installation demande l'hôte, le port, le nom de la base, l'utilisateur et le mot de passe MariaDB/MySQL, propose de créer la base automatiquement (si le compte a le droit `CREATE`), teste la connexion, écrit `includes/db-config.php` puis crée les tables (`users`, `tiles`, `questions`, `quizzes`, `tentatives`) — aucun script SQL à lancer à la main. Une tuile "Questionnaires" par défaut est créée automatiquement.
+   Si l'application est déjà installée, `install.php` redirige directement vers `index.php` (pas de réinstallation accidentelle) ; `install.php?force=1` permet de repasser par l'assistant pour dépanner une configuration existante.
+   Alternative sans interface (conteneur/CI) : définir les variables d'environnement `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`, ou copier `includes/db-config.sample.php` en `includes/db-config.php` à la main.
+3. Ouvrir `index.php` : le premier écran propose de créer le compte administrateur (si `install.php` n'a pas encore été passé et que la base n'est pas configurée, `index.php` y redirige automatiquement).
+4. Une fois connecté en admin, ajouter des questions (manuellement ou via import), créer un premier questionnaire, et éventuellement d'autres tuiles/utilisateurs depuis l'espace admin.
 
 > Les versions précédentes de l'application utilisaient une base SQLite locale (`data/quizz.sqlite`) et un compte admin unique stocké dans `data/credentials.json`. Ces deux mécanismes sont abandonnés au profit d'une vraie base MariaDB avec une table `users` multi-comptes ; les anciennes données n'ont pas été migrées automatiquement.
 
 ## Structure
 
 ```
+install.php                    Assistant d'installation (identifiants DB, création de la base, écriture de db-config.php)
 index.php                     Page de connexion (+ création du premier compte admin)
 dashboard.php                  Dashboard : grille de tuiles + accès admin (selon rôle)
 quiz.php                       Module de passage de questionnaires (candidat connecté)

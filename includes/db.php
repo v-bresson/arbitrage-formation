@@ -23,6 +23,14 @@ function qa_db_config() {
     return $config;
 }
 
+// Vrai si des identifiants ont déjà été renseignés explicitement (fichier
+// db-config.php présent, ou variables d'environnement DB_*), plutôt que les
+// valeurs par défaut du code : sert à distinguer "pas encore installé" d'une
+// vraie panne de connexion, pour orienter vers install.php le cas échéant.
+function qa_db_configured() {
+    return file_exists(__DIR__ . '/db-config.php') || getenv('DB_HOST') !== false;
+}
+
 function get_db() {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
@@ -43,6 +51,7 @@ function get_db() {
         header('Content-Type: application/json');
         echo json_encode([
             'success' => false,
+            'needs_install' => !qa_db_configured(),
             'message' => "Connexion à la base MariaDB impossible. Vérifiez includes/db-config.php (ou les variables d'environnement DB_HOST/DB_NAME/DB_USER/DB_PASS) et que la base existe. Détail : " . $e->getMessage(),
         ]);
         exit;
