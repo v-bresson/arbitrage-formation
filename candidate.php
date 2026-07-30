@@ -59,49 +59,51 @@
 
     <!-- ---------- VUE FORMATEUR : MES CANDIDATS ---------- -->
     <div id="formateur-view" class="hidden">
-        <h2 style="margin-bottom:16px;">Mes candidats</h2>
         <div class="field" style="max-width:420px;margin:0 auto 20px;">
-            <label>Rechercher (identifiant, nom, prénom, club)</label>
+            <label>Rechercher un candidat (identifiant, nom, prénom, club)</label>
             <input type="text" id="candidats-search-input" placeholder="Rechercher un candidat...">
         </div>
-        <div class="table-wrap panel" style="padding:0;">
+        <div class="table-wrap panel" id="candidats-search-results" style="padding:0;">
             <table>
                 <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th></th></tr></thead>
                 <tbody id="candidats-search-tbody"></tbody>
             </table>
         </div>
         <p class="msg" id="candidats-search-msg"></p>
-    </div>
-</div>
 
-<!-- ================= MODALE FICHE CANDIDAT (lecture seule) ================= -->
-<div id="fiche-modal-overlay" class="modal-overlay hidden">
-    <div class="modal">
-        <h2 id="fiche-modal-title">Fiche candidat</h2>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-            <div class="field-row">
-                <div class="field"><label>Prénom</label><p id="fiche-prenom" style="font-weight:600;">—</p></div>
-                <div class="field"><label>Nom</label><p id="fiche-nom" style="font-weight:600;">—</p></div>
+        <!-- Fiche du candidat sélectionné, même apparence que la vue candidat -->
+        <div id="candidat-fiche" class="hidden" style="margin-top:24px;">
+            <div class="panel" id="fiche-profile-card" style="margin-bottom:24px;flex-direction:row;flex-wrap:wrap;gap:28px;">
+                <div>
+                    <p class="modal-hint" style="margin:0;">Nom</p>
+                    <p id="fiche-nom" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Prénom</p>
+                    <p id="fiche-prenom" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Club</p>
+                    <p id="fiche-club" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">N° de licence</p>
+                    <p id="fiche-licence" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Niveau de formation</p>
+                    <p id="fiche-niveau" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Option</p>
+                    <p id="fiche-option" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Date d'entrée en formation</p>
+                    <p id="fiche-date-entree" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
             </div>
-            <div class="field-row">
-                <div class="field"><label>Email</label><p id="fiche-email" style="font-weight:600;">—</p></div>
-                <div class="field"><label>Téléphone</label><p id="fiche-telephone" style="font-weight:600;">—</p></div>
-            </div>
-            <div class="field-row">
-                <div class="field"><label>Club</label><p id="fiche-club" style="font-weight:600;">—</p></div>
-                <div class="field"><label>N° de licence</label><p id="fiche-licence" style="font-weight:600;">—</p></div>
-            </div>
-            <div class="field-row">
-                <div class="field"><label>Niveau de formation</label><p id="fiche-niveau" style="font-weight:600;">—</p></div>
-                <div class="field"><label>Option</label><p id="fiche-option" style="font-weight:600;">—</p></div>
-            </div>
-            <div class="field-row">
-                <div class="field"><label>Date d'entrée en formation</label><p id="fiche-date-entree" style="font-weight:600;">—</p></div>
-            </div>
-            <div class="grid" id="fiche-stats-grid"></div>
-            <div class="modal-actions">
-                <button type="button" class="secondary" id="fiche-close-btn">Fermer</button>
-            </div>
+            <div class="grid" id="fiche-stats-grid" style="margin-bottom:24px;"></div>
         </div>
     </div>
 </div>
@@ -532,7 +534,7 @@ function renderCandidatsSearchResults(list) {
             <td class="row-actions"><button type="button" class="secondary voir-fiche-btn" data-id="${c.id}">Voir la fiche</button></td>
         </tr>
     `).join('');
-    tbody.querySelectorAll('.voir-fiche-btn').forEach(btn => btn.addEventListener('click', () => openFicheModal(btn.dataset.id)));
+    tbody.querySelectorAll('.voir-fiche-btn').forEach(btn => btn.addEventListener('click', () => showFiche(btn.dataset.id)));
 }
 
 async function searchCandidats(q) {
@@ -552,20 +554,13 @@ document.getElementById('candidats-search-input').addEventListener('input', (e) 
     candidatsSearchTimer = setTimeout(() => searchCandidats(q), 250);
 });
 
-const ficheModal = document.getElementById('fiche-modal-overlay');
-document.getElementById('fiche-close-btn').addEventListener('click', () => ficheModal.classList.add('hidden'));
-ficheModal.addEventListener('click', e => { if (e.target === ficheModal) ficheModal.classList.add('hidden'); });
-
-async function openFicheModal(id) {
+async function showFiche(id) {
     try {
         const res = await fetch('api/mes_candidats.php?action=fiche&id=' + encodeURIComponent(id));
         if (!res.ok) return;
         const f = await res.json();
-        document.getElementById('fiche-modal-title').textContent = [f.prenom, f.nom].filter(Boolean).join(' ') || f.username;
         document.getElementById('fiche-prenom').textContent = f.prenom || '—';
         document.getElementById('fiche-nom').textContent = f.nom || '—';
-        document.getElementById('fiche-email').textContent = f.email || '—';
-        document.getElementById('fiche-telephone').textContent = f.telephone || '—';
         document.getElementById('fiche-club').textContent = f.club || '—';
         document.getElementById('fiche-licence').textContent = f.numero_licence || '—';
         document.getElementById('fiche-niveau').textContent = f.niveau_formation || '—';
@@ -575,12 +570,13 @@ async function openFicheModal(id) {
 
         const s = f.stats || {};
         document.getElementById('fiche-stats-grid').innerHTML = `
-            <div class="card"><p style="color:var(--text-secondary);">Questionnaires complétés</p><h2 style="font-size:1.6rem;">${s.total_tentatives ?? 0}</h2></div>
-            <div class="card"><p style="color:var(--text-secondary);">Réussis</p><h2 style="font-size:1.6rem;">${s.reussies ?? 0}</h2></div>
-            <div class="card"><p style="color:var(--text-secondary);">Score moyen</p><h2 style="font-size:1.6rem;">${s.moyenne_pct !== null && s.moyenne_pct !== undefined ? s.moyenne_pct + '%' : '—'}</h2></div>
-            <div class="card"><p style="color:var(--text-secondary);">Dernière tentative</p><h2 style="font-size:1.1rem;">${s.derniere_tentative ? new Date(s.derniere_tentative).toLocaleDateString('fr-FR') : '—'}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Questionnaires complétés</p><h2 style="font-size:2rem;">${s.total_tentatives ?? 0}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Réussis</p><h2 style="font-size:2rem;">${s.reussies ?? 0}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Score moyen</p><h2 style="font-size:2rem;">${s.moyenne_pct !== null && s.moyenne_pct !== undefined ? s.moyenne_pct + '%' : '—'}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Dernière tentative</p><h2 style="font-size:1.3rem;">${s.derniere_tentative ? new Date(s.derniere_tentative).toLocaleDateString('fr-FR') : '—'}</h2></div>
         `;
-        ficheModal.classList.remove('hidden');
+        document.getElementById('candidat-fiche').classList.remove('hidden');
+        document.getElementById('candidat-fiche').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) { /* pas bloquant */ }
 }
 
