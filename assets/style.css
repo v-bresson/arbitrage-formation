@@ -223,6 +223,10 @@ body.has-fixed-header { padding-top: 0; }
 .breadcrumb .sep { margin: 0 6px; opacity: 0.45; }
 .breadcrumb .current { color: var(--text-primary); font-weight: 600; }
 
+.header-spacer + .page {
+    margin-top: 24px;
+}
+
 .header-spacer {
     height: calc(var(--header-h) + var(--breadcrumb-h));
     width: 100%;
