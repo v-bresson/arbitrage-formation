@@ -1,4 +1,4 @@
-# ArcheryOps Judging
+# ArcheryOps - Arbitrage
 
 Application web PHP + JS pour créer des QCM et faire passer des questionnaires de validation de la formation d'arbitre assistant. Pensée comme un module destiné à s'intégrer, à terme, dans une architecture ArcheryOps plus large (Results, Judging, inscriptions...) partageant un dashboard et une base d'utilisateurs communs.
 

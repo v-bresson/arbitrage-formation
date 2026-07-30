@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>ArcheryOps Judging — Installation</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="auth-page">
 
 <div class="brand center">
     <img src="assets/logo.png" alt="ArcheryOps Judging">
