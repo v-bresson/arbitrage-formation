@@ -31,6 +31,12 @@ const QA_PERMISSION_SECTIONS = [
 
 const QA_PERMISSION_LEVELS = ['none', 'read', 'manage'];
 
+// Suivi de formation d'un candidat : niveau visé et option de pratique,
+// éditables depuis la fiche complète d'un utilisateur (gestion des
+// comptes, permission "users").
+const QA_NIVEAUX_FORMATION = ['Assistant Arbitre', 'Arbitre Fédéral', 'Arbitre Duel'];
+const QA_OPTIONS_PRATIQUE = ['Cible', 'Nat/3D', 'Campagne'];
+
 // Alias de compatibilité : une installation pas encore migrée (voir
 // includes/db.php, migration roles_permissions_2026_07) a encore des
 // comptes avec l'ancien rôle 'admin'/'user' en base tant que la migration

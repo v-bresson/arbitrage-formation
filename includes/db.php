@@ -102,6 +102,15 @@ function qa_schema_migrations() {
             // elle-même qui fait foi).
             'legacy_check' => "SELECT (SELECT COUNT(*) FROM tiles WHERE nom = 'Mes stages') = 0 AS c",
         ],
+        [
+            'id' => 'candidats_suivi_formation_2026_07',
+            'description' => "Ajout du suivi de formation des candidats (niveau, option de pratique, formateur référent)",
+            'columns' => [
+                ['table' => 'users', 'column' => 'niveau_formation', 'definition' => 'VARCHAR(50) NULL'],
+                ['table' => 'users', 'column' => 'option_pratique', 'definition' => 'VARCHAR(50) NULL'],
+                ['table' => 'users', 'column' => 'formateur_referent_id', 'definition' => 'INT UNSIGNED NULL'],
+            ],
+        ],
     ];
 }
 
@@ -297,6 +306,9 @@ function get_db() {
         numero_licence VARCHAR(50) NULL,
         telephone VARCHAR(30) NULL,
         club VARCHAR(191) NULL,
+        niveau_formation VARCHAR(50) NULL,
+        option_pratique VARCHAR(50) NULL,
+        formateur_referent_id INT UNSIGNED NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
