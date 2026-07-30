@@ -361,7 +361,7 @@ body.has-fixed-header { padding-top: 0; }
 
 /* ---------- Table (admin) ---------- */
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
 th { color: var(--text-secondary); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 tr:hover td { background: var(--bg-card-hover); }
 .table-wrap { overflow-x: auto; }
