@@ -11,9 +11,18 @@
 <header class="site-header">
     <div class="site-header-row">
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
-        <div style="display:flex;gap:14px;align-items:center;">
-            <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
-            <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+            <div style="display:flex;gap:14px;align-items:center;">
+                <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
+                <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+            </div>
+            <label id="tiles-manage-toggle-row" class="switch-toggle hidden">
+                <span class="switch-toggle-label">Mode config</span>
+                <span class="switch">
+                    <input type="checkbox" id="tiles-manage-toggle">
+                    <span class="switch-slider"></span>
+                </span>
+            </label>
         </div>
     </div>
 </header>
@@ -41,13 +50,6 @@
         </div>
     </div>
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
-
-    <div id="tiles-manage-toggle-row" class="hidden" style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <button type="button" id="tiles-manage-toggle-btn" class="edit-tiles-toggle" aria-pressed="false">
-            <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            <span id="tiles-manage-toggle-label">Modifier les tuiles</span>
-        </button>
-    </div>
 
     <div class="grid" id="tiles-grid"></div>
     <p class="msg" id="tiles-msg" style="text-align:center;margin-top:20px;"></p>
@@ -140,9 +142,7 @@ function bind() {
     document.getElementById('profile-licence').textContent = vm.profile.numero_licence || '—';
 
     document.getElementById('tiles-manage-toggle-row').classList.toggle('hidden', !canManageTiles());
-    const toggleBtn = document.getElementById('tiles-manage-toggle-btn');
-    toggleBtn.setAttribute('aria-pressed', String(vm.manageMode));
-    document.getElementById('tiles-manage-toggle-label').textContent = vm.manageMode ? 'Terminer la modification' : 'Modifier les tuiles';
+    document.getElementById('tiles-manage-toggle').checked = vm.manageMode;
 
     renderStats();
 
@@ -180,17 +180,82 @@ function bind() {
 }
 qaWatchEffect(bind);
 
+// ---------- Générique : glisser-déposer pour réordonner une grille ----------
+// Attache le drag & drop HTML5 aux cartes .draggable-card d'une grille ;
+// appelle onReorder(nouvelOrdreDesCles) une fois le drop terminé, avec la
+// liste des data-key dans leur nouvel ordre visuel.
+function enableDragReorder(grid, onReorder) {
+    let dragged = null;
+    grid.querySelectorAll('.draggable-card').forEach(card => {
+        card.addEventListener('dragstart', () => {
+            dragged = card;
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+            grid.querySelectorAll('.draggable-card').forEach(c => c.classList.remove('drag-over'));
+        });
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (card !== dragged) card.classList.add('drag-over');
+        });
+        card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+        card.addEventListener('drop', (e) => {
+            e.preventDefault();
+            card.classList.remove('drag-over');
+            if (!dragged || dragged === card) return;
+            const cards = [...grid.querySelectorAll('.draggable-card')];
+            const from = cards.indexOf(dragged);
+            const to = cards.indexOf(card);
+            if (from < to) card.after(dragged); else card.before(dragged);
+            const newOrder = [...grid.querySelectorAll('.draggable-card')].map(c => c.dataset.key);
+            onReorder(newOrder);
+        });
+    });
+}
+
 // ---------- Tuiles : stats du candidat ----------
+const STATS_ORDER_KEY = 'qa_candidate_stats_order';
+
+function getStatsOrder(keys) {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(STATS_ORDER_KEY) || '[]'); } catch (err) { saved = []; }
+    const ordered = saved.filter(k => keys.includes(k));
+    keys.forEach(k => { if (!ordered.includes(k)) ordered.push(k); });
+    return ordered;
+}
+
+function saveStatsOrder(order) {
+    try { localStorage.setItem(STATS_ORDER_KEY, JSON.stringify(order)); } catch (err) { /* pas bloquant */ }
+}
+
 function renderStats() {
     const grid = document.getElementById('stats-grid');
     const s = vm.stats;
     if (!s) { grid.innerHTML = ''; return; }
-    grid.innerHTML = `
-        <div class="card"><p style="color:var(--text-secondary);">Questionnaires complétés</p><h2 style="font-size:2rem;">${s.total_tentatives}</h2></div>
-        <div class="card"><p style="color:var(--text-secondary);">Réussis</p><h2 style="font-size:2rem;">${s.reussies}</h2></div>
-        <div class="card"><p style="color:var(--text-secondary);">Score moyen</p><h2 style="font-size:2rem;">${s.moyenne_pct !== null ? s.moyenne_pct + '%' : '—'}</h2></div>
-        <div class="card"><p style="color:var(--text-secondary);">Dernière tentative</p><h2 style="font-size:1.3rem;">${s.derniere_tentative ? new Date(s.derniere_tentative).toLocaleDateString('fr-FR') : '—'}</h2></div>
-    `;
+
+    const items = {
+        completes: { label: 'Questionnaires complétés', value: s.total_tentatives, big: true },
+        reussis: { label: 'Réussis', value: s.reussies, big: true },
+        moyenne: { label: 'Score moyen', value: s.moyenne_pct !== null ? s.moyenne_pct + '%' : '—', big: true },
+        derniere: { label: 'Dernière tentative', value: s.derniere_tentative ? new Date(s.derniere_tentative).toLocaleDateString('fr-FR') : '—', big: false },
+    };
+    const order = getStatsOrder(Object.keys(items));
+
+    grid.innerHTML = order.map(key => {
+        const it = items[key];
+        const handle = vm.manageMode ? `<div class="drag-handle">⠿</div>` : '';
+        return `
+        <div class="card draggable-card" draggable="${vm.manageMode}" data-key="${key}" style="position:relative;">
+            ${handle}
+            <p style="color:var(--text-secondary);">${it.label}</p>
+            <h2 style="font-size:${it.big ? '2rem' : '1.3rem'};">${it.value}</h2>
+        </div>`;
+    }).join('');
+
+    if (vm.manageMode) {
+        enableDragReorder(grid, (newOrder) => saveStatsOrder(newOrder));
+    }
 }
 
 async function loadStats() {
@@ -206,10 +271,11 @@ const TILE_TYPE_LABELS = { questionnaire: 'Candidats arbitres (module intégré)
 
 function renderManageTiles(grid) {
     const tiles = vm.adminTiles || [];
-    grid.innerHTML = tiles.map((t, idx) => `
-        <div class="card tile-manage-card">
+    grid.innerHTML = tiles.map(t => `
+        <div class="card tile-manage-card draggable-card" draggable="true" data-key="${t.id}" data-id="${t.id}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                <h2>${escapeHtml(t.nom)}</h2>
+                <div class="drag-handle" title="Glisser pour réordonner">⠿</div>
+                <h2 style="flex:1;">${escapeHtml(t.nom)}</h2>
                 <span class="pill">${TILE_TYPE_LABELS[t.type] || t.type}</span>
             </div>
             <p>${escapeHtml(t.description || '')}</p>
@@ -218,8 +284,6 @@ function renderManageTiles(grid) {
                 <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
             </div>
             <div class="tile-manage-actions">
-                <button type="button" class="secondary tile-move-up-btn" data-id="${t.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
-                <button type="button" class="secondary tile-move-down-btn" data-id="${t.id}" ${idx === tiles.length - 1 ? 'disabled' : ''}>↓</button>
                 <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
                 <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
             </div>
@@ -228,9 +292,16 @@ function renderManageTiles(grid) {
 
     grid.querySelectorAll('.edit-tile-btn').forEach(btn => btn.addEventListener('click', () => openTileModal(btn.dataset.id)));
     grid.querySelectorAll('.delete-tile-btn').forEach(btn => btn.addEventListener('click', () => deleteTile(btn.dataset.id)));
-    grid.querySelectorAll('.tile-move-up-btn').forEach(btn => btn.addEventListener('click', () => moveTile(btn.dataset.id, -1)));
-    grid.querySelectorAll('.tile-move-down-btn').forEach(btn => btn.addEventListener('click', () => moveTile(btn.dataset.id, 1)));
     document.getElementById('add-tile-card-btn').addEventListener('click', () => openTileModal(null));
+
+    enableDragReorder(grid, async (newOrderIds) => {
+        const byId = Object.fromEntries(tiles.map(t => [String(t.id), t]));
+        for (let i = 0; i < newOrderIds.length; i++) {
+            const t = byId[newOrderIds[i]];
+            if (t && t.ordre !== i) await saveTilePayload({ ...t, ordre: i });
+        }
+        await loadAdminTiles();
+    });
 }
 
 async function loadAdminTiles() {
@@ -248,18 +319,6 @@ async function saveTilePayload(payload) {
         body: JSON.stringify(payload),
     });
     return res.json();
-}
-
-async function moveTile(id, direction) {
-    const tiles = vm.adminTiles || [];
-    const idx = tiles.findIndex(t => String(t.id) === String(id));
-    const swapIdx = idx + direction;
-    if (idx === -1 || swapIdx < 0 || swapIdx >= tiles.length) return;
-    const a = tiles[idx];
-    const b = tiles[swapIdx];
-    await saveTilePayload({ ...a, ordre: b.ordre });
-    await saveTilePayload({ ...b, ordre: a.ordre });
-    await loadAdminTiles();
 }
 
 const tileModal = document.getElementById('tile-modal-overlay');
@@ -354,8 +413,8 @@ async function deleteTile(id) {
     } catch (err) { /* pas bloquant */ }
 }
 
-document.getElementById('tiles-manage-toggle-btn').addEventListener('click', async () => {
-    vm.manageMode = !vm.manageMode;
+document.getElementById('tiles-manage-toggle').addEventListener('change', async (e) => {
+    vm.manageMode = e.target.checked;
     if (vm.manageMode && !vm.adminTiles) await loadAdminTiles();
 });
 

@@ -13,7 +13,7 @@
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
     </div>
 </header>
-<nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><span class="current">Mes stages</span></div></nav>
+<nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><a href="candidate.php">Espace candidat</a><span class="sep">/</span><span class="current">Mes stages</span></div></nav>
 <div class="header-spacer"></div>
 <script src="assets/header-fix.js"></script>
 
