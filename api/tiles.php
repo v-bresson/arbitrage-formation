@@ -30,17 +30,24 @@ $scope = in_array($requestedScope, ['candidat', 'accueil'], true) ? $requestedSc
 // Liste des tuiles visibles pour l'utilisateur connecté (dashboard ou
 // Espace candidat, selon $scope). Les tuiles réservées à l'admin sont
 // filtrées pour les autres rôles.
+// Tant que la migration tiles_scope_accueil_2026_07 n'a pas été lancée par
+// un admin (voir includes/db.php), la colonne scope n'existe pas encore :
+// on filtre alors sans elle, pour ne pas casser l'affichage des tuiles
+// existantes (toutes considérées "candidat" avant cette migration).
+$hasScopeColumn = qa_column_exists($pdo, 'tiles', 'scope');
+
 if ($action === 'list') {
     $role = $_SESSION['role'] ?? 'candidat';
     $isAdmin = qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role);
+    $scopeSql = $hasScopeColumn ? ' AND scope=?' : '';
+    $params = $hasScopeColumn ? [$scope] : [];
     if ($isAdmin) {
-        $stmt = $pdo->prepare('SELECT * FROM tiles WHERE actif=1 AND scope=? ORDER BY ordre, nom');
-        $stmt->execute([$scope]);
+        $stmt = $pdo->prepare("SELECT * FROM tiles WHERE actif=1{$scopeSql} ORDER BY ordre, nom");
     } else {
-        $stmt = $pdo->prepare('SELECT * FROM tiles WHERE actif=1 AND admin_uniquement=0 AND scope=? ORDER BY ordre, nom');
-        $stmt->execute([$scope]);
+        $stmt = $pdo->prepare("SELECT * FROM tiles WHERE actif=1 AND admin_uniquement=0{$scopeSql} ORDER BY ordre, nom");
     }
-    echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
+    $stmt->execute($params);
+    echo json_encode(array_map('qa_tile_row_out', $hasScopeColumn || $scope === 'candidat' ? $stmt->fetchAll() : []));
     exit;
 }
 
@@ -48,9 +55,14 @@ if ($action === 'list') {
 // voir includes/permissions.php).
 if ($action === 'list_admin') {
     require_permission('tiles', 'read');
-    $stmt = $pdo->prepare('SELECT * FROM tiles WHERE scope=? ORDER BY ordre, nom');
-    $stmt->execute([$scope]);
-    echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
+    if ($hasScopeColumn) {
+        $stmt = $pdo->prepare('SELECT * FROM tiles WHERE scope=? ORDER BY ordre, nom');
+        $stmt->execute([$scope]);
+        echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
+    } else {
+        $stmt = $pdo->query('SELECT * FROM tiles ORDER BY ordre, nom');
+        echo json_encode(array_map('qa_tile_row_out', $scope === 'candidat' ? $stmt->fetchAll() : []));
+    }
     exit;
 }
 
@@ -79,13 +91,24 @@ if ($action === 'save') {
         exit;
     }
 
-    if ($id) {
-        $stmt = $pdo->prepare('UPDATE tiles SET nom=?, description=?, type=?, url=?, icone=?, admin_uniquement=?, ordre=?, actif=?, scope=? WHERE id=?');
-        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope, $id]);
-    } else {
-        $stmt = $pdo->prepare('INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif, scope) VALUES (?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope]);
-        $id = $pdo->lastInsertId();
+    try {
+        if ($id) {
+            $stmt = $pdo->prepare('UPDATE tiles SET nom=?, description=?, type=?, url=?, icone=?, admin_uniquement=?, ordre=?, actif=?, scope=? WHERE id=?');
+            $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope, $id]);
+        } else {
+            $stmt = $pdo->prepare('INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif, scope) VALUES (?,?,?,?,?,?,?,?,?)');
+            $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope]);
+            $id = $pdo->lastInsertId();
+        }
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) === 1054) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "La base de données n'est pas à jour : un administrateur doit lancer la mise à jour de la base depuis Administration > Mise à jour système avant d'enregistrer une tuile."]);
+            exit;
+        }
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => "Erreur lors de l'enregistrement de la tuile"]);
+        exit;
     }
 
     $stmt = $pdo->prepare('SELECT * FROM tiles WHERE id=?');
@@ -98,7 +121,13 @@ if ($action === 'delete') {
     require_permission('tiles', 'manage');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($body['id'] ?? 0);
-    $pdo->prepare('DELETE FROM tiles WHERE id=?')->execute([$id]);
+    try {
+        $pdo->prepare('DELETE FROM tiles WHERE id=?')->execute([$id]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Erreur lors de la suppression de la tuile']);
+        exit;
+    }
     echo json_encode(['success' => true]);
     exit;
 }
