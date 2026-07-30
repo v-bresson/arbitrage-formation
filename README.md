@@ -1,6 +1,6 @@
 # ArcheryOps - Arbitrage
 
-Application web PHP + JS pour créer des QCM et faire passer des questionnaires de validation de la formation d'arbitre assistant en tir à l'arc.
+Application web PHP + JS dédiée à la gestion de la formation des arbitres de la FFTA (Fédération Française de Tir à l'Arc) : suivi des candidats, questionnaires de validation et administration des comptes/rôles.
 
 ## Fonctionnalités principales
 
