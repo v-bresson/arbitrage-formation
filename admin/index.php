@@ -29,7 +29,6 @@
             </div>
         </div>
     </header>
-    <nav class="breadcrumb"><div class="breadcrumb-row" id="admin-breadcrumb"></div></nav>
     <div class="header-spacer"></div>
     <script src="../assets/header-fix.js"></script>
 

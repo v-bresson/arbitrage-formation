@@ -101,32 +101,6 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     window.location.href = '../index.php';
 });
 
-// ---------- Fil d'ariane (fixe, sous le bandeau) ----------
-const BREADCRUMB_LABELS = {
-    overview: { group: null, label: 'Dashboard' },
-    questions: { group: 'Candidats arbitres', label: 'Banque de questions' },
-    quizzes: { group: 'Candidats arbitres', label: 'Questionnaires' },
-    attempts: { group: 'Candidats arbitres', label: 'Résultats' },
-    users: { group: null, label: 'Comptes utilisateurs' },
-    tiles: { group: 'Administration', label: 'Tuiles' },
-    maintenance: { group: 'Administration', label: 'Mise à jour système' },
-};
-
-function updateBreadcrumb(tab) {
-    const info = BREADCRUMB_LABELS[tab] || BREADCRUMB_LABELS.overview;
-    let html = '<a href="../dashboard.php">Accueil</a><span class="sep">/</span>';
-    if (tab === 'overview') {
-        html += '<span class="current">Espace admin</span>';
-    } else {
-        html += '<a href="#" id="breadcrumb-admin-root">Espace admin</a><span class="sep">/</span>';
-        if (info.group) html += `<span>${info.group}</span><span class="sep">/</span>`;
-        html += `<span class="current">${info.label}</span>`;
-    }
-    document.getElementById('admin-breadcrumb').innerHTML = html;
-    const rootLink = document.getElementById('breadcrumb-admin-root');
-    if (rootLink) rootLink.addEventListener('click', (e) => { e.preventDefault(); selectSidebarTab('overview'); });
-}
-
 // ---------- Menu latéral (Dashboard / Candidats arbitres / Comptes utilisateurs / Administration) ----------
 function selectSidebarTab(tab) {
     document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
@@ -137,8 +111,6 @@ function selectSidebarTab(tab) {
 
     const parentGroup = btn && btn.closest('.sidebar-group');
     if (parentGroup) parentGroup.classList.add('open');
-
-    updateBreadcrumb(tab);
 
     if (tab === 'quizzes') loadQuizzes();
     if (tab === 'attempts') loadAttempts();
@@ -169,7 +141,6 @@ qaWatchEffect(() => {
 });
 
 function initAdmin() {
-    updateBreadcrumb('overview');
     loadQuestions();
     loadQuizzes();
     loadAttempts();
