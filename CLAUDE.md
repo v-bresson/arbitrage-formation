@@ -13,7 +13,7 @@ Repo `v-bresson/quizz-arbitre` — application PHP + JS de QCM/formation pour ar
 
 Deux régimes bien distincts, à ne jamais mélanger :
 
-1. **Tables/colonnes purement additives** (nouvelle table qui n'existe nulle part encore, ex. `roles`, `role_permissions`, `user_permissions`, `user_roles`, `candidat_niveaux_valides`, `tiles`) : créées **sans condition** à chaque appel de `get_db()` (`CREATE TABLE IF NOT EXISTS`), avec éventuellement un backfill idempotent (`INSERT ... WHERE NOT EXISTS`). Sans danger sur une base existante.
+1. **Tables/colonnes purement additives** (nouvelle table qui n'existe nulle part encore, ex. `roles`, `role_permissions`, `user_permissions`, `user_roles`, `tiles`) : créées **sans condition** à chaque appel de `get_db()` (`CREATE TABLE IF NOT EXISTS`), avec éventuellement un backfill idempotent (`INSERT ... WHERE NOT EXISTS`). Sans danger sur une base existante.
 2. **Altération d'une table existante** (nouvelle colonne sur `users`, `tiles`, etc.) : passe *obligatoirement* par le registre `qa_schema_migrations()` — jamais d'`ALTER TABLE` direct hors de ce mécanisme. Une migration n'est appliquée qu'à la demande explicite de l'admin (Administration > Mise à jour système), sauf sur une installation neuve où le schéma cible est déjà dans le `CREATE TABLE` (la migration est alors auto-marquée appliquée par `qa_sync_schema_migrations()`).
 
 **Piège classique** : si du code (API) référence une colonne qui vient d'être ajoutée au `CREATE TABLE` mais dont la migration n'a pas encore été lancée sur une base existante, une requête SQL brute peut planter (`PDOException` non catchée) et casser le JSON de réponse — le front-end interprète alors ça comme une erreur réseau générique ("Erreur de connexion au serveur"), ce qui n'aide pas au diagnostic. Toujours :
@@ -27,12 +27,6 @@ Deux régimes bien distincts, à ne jamais mélanger :
 - `users.role` (colonne unique) est conservé comme "rôle principal" = le rôle le plus haut rang parmi ceux cochés (ordre : candidat < formateur < membre_cra < super_admin, rang par défaut 1 pour un rôle personnalisé). Sert uniquement à l'affichage/compat ; ne jamais l'utiliser pour une décision de permission, toujours passer par `qa_effective_permissions()`/`qa_has_permission()`.
 - Invariant important à préserver si on retouche `api/users.php` : la promotion automatique de `super_admin` en rôle principal dès qu'il est coché est ce qui permet à `qa_super_admin_count()` (garde-fou "au moins un Super-Admin actif") de rester fiable même si on lit `users.role` quelque part par erreur.
 - `qa_has_formateur_role()` (booléen simple "ce compte a-t-il le rôle Formateur") sert spécifiquement à `candidate.php` pour la vue exclusive — ne pas confondre avec `qa_has_formateur_access()` (basé sur les permissions effectives, pour la tuile "Espace formateur" du dashboard).
-
-## Suivi de formation des candidats
-
-- Un candidat évolue dans le temps sur plusieurs niveaux (Assistant Arbitre, Arbitre Fédéral, Arbitre Duel) : chaque niveau validé est enregistré séparément avec sa date (table `candidat_niveaux_valides`, une ligne par niveau coché ; `date_validation` NULL = niveau "en cours", pas encore formellement daté). `qa_user_niveaux_valides($pdo, $userId)` (dans `includes/db.php`) renvoie l'historique complet, utilisé à la fois par la fiche admin (`api/users.php`) et la fiche formateur en lecture seule (`api/mes_candidats.php`).
-- L'ancienne colonne unique `users.niveau_formation` n'est plus lue ni écrite (remplacée par la table ci-dessus au moment du passage au multi-niveaux) — elle reste en base sans usage actif, ne pas s'y fier si elle traîne encore sur une vieille installation.
-- Édition réservée à Administration > Comptes utilisateurs (fiche complète, case à cocher + date par niveau) : un formateur ne peut que consulter (lecture seule) le suivi de formation de ses candidats assignés, jamais le modifier.
 
 ## Espace candidat vs Espace formateur
 

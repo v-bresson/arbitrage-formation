@@ -423,18 +423,25 @@
 
             <div id="user-training-field" style="display:flex;flex-direction:column;gap:12px;">
                 <label style="margin:0;">Suivi de formation</label>
-                <div class="field">
-                    <label>Niveaux de formation validés (un candidat évolue dans le temps)</label>
-                    <div id="user-niveaux-valides" style="display:flex;flex-direction:column;gap:8px;"></div>
-                </div>
-                <div class="field" style="max-width:260px;">
-                    <label>Option</label>
-                    <select id="user-option-pratique">
-                        <option value="">—</option>
-                        <option value="Cible">Cible</option>
-                        <option value="Nat/3D">Nat/3D</option>
-                        <option value="Campagne">Campagne</option>
-                    </select>
+                <div class="field-row">
+                    <div class="field">
+                        <label>Niveau de formation</label>
+                        <select id="user-niveau-formation">
+                            <option value="">—</option>
+                            <option value="Assistant Arbitre">Assistant Arbitre</option>
+                            <option value="Arbitre Fédéral">Arbitre Fédéral</option>
+                            <option value="Arbitre Duel">Arbitre Duel</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Option</label>
+                        <select id="user-option-pratique">
+                            <option value="">—</option>
+                            <option value="Cible">Cible</option>
+                            <option value="Nat/3D">Nat/3D</option>
+                            <option value="Campagne">Campagne</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="field-row">
                     <div class="field">

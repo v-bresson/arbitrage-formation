@@ -92,12 +92,11 @@
                 <div class="field"><label>N° de licence</label><p id="fiche-licence" style="font-weight:600;">—</p></div>
             </div>
             <div class="field-row">
+                <div class="field"><label>Niveau de formation</label><p id="fiche-niveau" style="font-weight:600;">—</p></div>
                 <div class="field"><label>Option</label><p id="fiche-option" style="font-weight:600;">—</p></div>
-                <div class="field"><label>Date d'entrée en formation</label><p id="fiche-date-entree" style="font-weight:600;">—</p></div>
             </div>
-            <div class="field">
-                <label>Niveaux de formation validés</label>
-                <div id="fiche-niveaux" style="display:flex;flex-wrap:wrap;gap:8px;">—</div>
+            <div class="field-row">
+                <div class="field"><label>Date d'entrée en formation</label><p id="fiche-date-entree" style="font-weight:600;">—</p></div>
             </div>
             <div class="grid" id="fiche-stats-grid"></div>
             <div class="modal-actions">
@@ -569,14 +568,10 @@ async function openFicheModal(id) {
         document.getElementById('fiche-telephone').textContent = f.telephone || '—';
         document.getElementById('fiche-club').textContent = f.club || '—';
         document.getElementById('fiche-licence').textContent = f.numero_licence || '—';
+        document.getElementById('fiche-niveau').textContent = f.niveau_formation || '—';
         document.getElementById('fiche-option').textContent = f.option_pratique || '—';
         document.getElementById('fiche-date-entree').textContent = f.date_entree_formation
             ? new Date(f.date_entree_formation).toLocaleDateString('fr-FR') : '—';
-
-        const niveaux = f.niveaux_valides || [];
-        document.getElementById('fiche-niveaux').innerHTML = niveaux.length
-            ? niveaux.map(n => `<span class="pill">${escapeHtml(n.niveau)}${n.date_validation ? ' — ' + new Date(n.date_validation).toLocaleDateString('fr-FR') : ' (en cours)'}</span>`).join('')
-            : '—';
 
         const s = f.stats || {};
         document.getElementById('fiche-stats-grid').innerHTML = `
