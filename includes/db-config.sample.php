@@ -13,4 +13,14 @@ return [
     'database' => 'archeryops_judging',
     'username' => 'archeryops',
     'password' => 'change-me',
+
+    // Optionnel : permet la détection/mise à jour depuis une release GitHub
+    // dans l'onglet Maintenance de l'admin. Le token doit avoir le droit de
+    // lecture du dépôt (repo privé) ou des releases (repo public). Sans
+    // cette clé, la mise à jour reste possible par upload manuel d'un .zip.
+    // 'github' => [
+    //     'token' => 'ghp_xxx',
+    //     'owner' => 'v-bresson',
+    //     'repo' => 'quizz-arbitre',
+    // ],
 ];

@@ -76,6 +76,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'attempts') loadAttempts();
         if (btn.dataset.tab === 'tiles') loadTilesAdmin();
         if (btn.dataset.tab === 'users') loadUsers();
+        if (btn.dataset.tab === 'maintenance') loadMaintenance();
     });
 });
 
@@ -857,6 +858,210 @@ async function deleteUser(id) {
         document.getElementById('users-msg').textContent = 'Erreur de connexion au serveur';
     }
 }
+
+// ================= MAINTENANCE (MISE A JOUR, SAUVEGARDES, LOGS) =================
+function formatBytes(bytes) {
+    if (bytes === undefined || bytes === null) return '—';
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+}
+
+async function loadMaintenance() {
+    try {
+        const res = await fetch('../api/maintenance.php?action=state');
+        const data = await res.json();
+        if (!data.success) return;
+
+        document.getElementById('maint-version-pill').textContent = 'Version : ' + data.app_version;
+        document.getElementById('maint-backup-count-pill').textContent = data.backup_count + ' sauvegarde(s)';
+
+        const githubCard = document.getElementById('maint-github-card');
+        githubCard.classList.toggle('hidden', !data.github_configured);
+
+        const tbody = document.getElementById('maint-backups-tbody');
+        if (!data.backups.length) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color:var(--text-secondary);">Aucune sauvegarde disponible pour le moment.</td></tr>`;
+        } else {
+            tbody.innerHTML = data.backups.map(b => `
+                <tr>
+                    <td>${escapeHtml(b.filename)}</td>
+                    <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
+                    <td>${formatBytes(b.size_bytes)}</td>
+                    <td class="row-actions">
+                        <button type="button" class="danger restore-backup-btn" data-filename="${escapeHtml(b.filename)}">Restaurer</button>
+                        <button type="button" class="secondary delete-backup-btn" data-filename="${escapeHtml(b.filename)}">Supprimer</button>
+                    </td>
+                </tr>
+            `).join('');
+            tbody.querySelectorAll('.restore-backup-btn').forEach(btn => btn.addEventListener('click', () => restoreBackup(btn.dataset.filename)));
+            tbody.querySelectorAll('.delete-backup-btn').forEach(btn => btn.addEventListener('click', () => deleteBackup(btn.dataset.filename)));
+        }
+    } catch (err) {
+        document.getElementById('maint-backups-msg').textContent = 'Erreur de chargement';
+    }
+    loadMaintenanceLog();
+}
+
+document.getElementById('maint-github-check-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('maint-github-check-btn');
+    const resultEl = document.getElementById('maint-github-result');
+    btn.disabled = true;
+    btn.textContent = 'Vérification en cours...';
+    resultEl.innerHTML = '';
+
+    try {
+        const res = await fetch('../api/maintenance.php?action=github-check');
+        const data = await res.json();
+        if (!data.success) {
+            resultEl.innerHTML = `<p class="msg error">${escapeHtml(data.message || 'Erreur')}</p>`;
+        } else {
+            let html = `<div class="meta"><span class="pill">Version installée : ${escapeHtml(data.current_version)}</span><span class="pill">Dernière release : ${escapeHtml(data.latest_version)}</span></div>`;
+            if (data.update_available) {
+                html += `<button type="button" id="maint-github-update-btn" data-zipball="${escapeHtml(data.zipball_url)}" data-tag="${escapeHtml(data.tag_name)}" style="margin-top:10px;">Mettre à jour vers ${escapeHtml(data.tag_name)}</button>`;
+            } else {
+                html += `<p class="modal-hint" style="margin-top:10px;">Vous êtes déjà à jour.</p>`;
+            }
+            resultEl.innerHTML = html;
+            const updateBtn = document.getElementById('maint-github-update-btn');
+            if (updateBtn) updateBtn.addEventListener('click', () => githubUpdate(updateBtn.dataset.zipball, updateBtn.dataset.tag));
+        }
+    } catch (err) {
+        resultEl.innerHTML = `<p class="msg error">Erreur de connexion au serveur</p>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Vérifier les mises à jour';
+    }
+});
+
+async function githubUpdate(zipballUrl, tagName) {
+    if (!confirm(`Mettre à jour l'application vers ${tagName} ? Une sauvegarde sera créée automatiquement avant.`)) return;
+    const resultEl = document.getElementById('maint-github-result');
+    resultEl.innerHTML = '<p class="modal-hint">Mise à jour en cours...</p>';
+
+    try {
+        const res = await fetch('../api/maintenance.php?action=github-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zipball_url: zipballUrl, tag_name: tagName }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            resultEl.innerHTML = `<p class="msg success">Mise à jour appliquée : ${data.files_copied} fichier(s) copié(s), sauvegarde ${escapeHtml(data.backup_created)}.</p>`;
+            await loadMaintenance();
+        } else {
+            resultEl.innerHTML = `<p class="msg error">${escapeHtml(data.message || 'Erreur')}</p>`;
+        }
+    } catch (err) {
+        resultEl.innerHTML = `<p class="msg error">Erreur de connexion au serveur</p>`;
+    }
+}
+
+document.getElementById('maint-update-btn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('maint-update-msg');
+    msgEl.textContent = '';
+    msgEl.className = 'msg';
+
+    const fileInput = document.getElementById('maint-update-file');
+    if (!fileInput.files.length) { msgEl.className = 'msg error'; msgEl.textContent = 'Choisissez un fichier .zip'; return; }
+    if (!document.getElementById('maint-update-confirm').checked) { msgEl.className = 'msg error'; msgEl.textContent = 'Cochez la case de confirmation avant de continuer'; return; }
+    if (!confirm('Cette opération va remplacer les fichiers de l\'application (une sauvegarde est créée automatiquement avant). Continuer ?')) return;
+
+    const btn = document.getElementById('maint-update-btn');
+    btn.disabled = true;
+    btn.textContent = 'Mise à jour en cours...';
+
+    try {
+        const formData = new FormData();
+        formData.append('zipfile', fileInput.files[0]);
+        const res = await fetch('../api/maintenance.php?action=update', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            msgEl.className = 'msg success';
+            msgEl.textContent = `Mise à jour appliquée : ${data.files_copied} fichier(s) copié(s), ${data.files_skipped} ignoré(s) (chemins protégés). Sauvegarde : ${data.backup_created}.`;
+            fileInput.value = '';
+            document.getElementById('maint-update-confirm').checked = false;
+            await loadMaintenance();
+        } else {
+            msgEl.className = 'msg error';
+            msgEl.textContent = data.message || 'Erreur lors de la mise à jour';
+        }
+    } catch (err) {
+        msgEl.className = 'msg error';
+        msgEl.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Lancer la mise à jour';
+    }
+});
+
+async function restoreBackup(filename) {
+    if (!confirm(`Restaurer la sauvegarde ${filename} ? Les fichiers actuels seront remplacés (hors chemins protégés).`)) return;
+    const msgEl = document.getElementById('maint-backups-msg');
+    msgEl.textContent = '';
+    try {
+        const res = await fetch('../api/maintenance.php?action=restore-backup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            msgEl.className = 'msg success';
+            msgEl.textContent = `Sauvegarde restaurée : ${data.files_copied} fichier(s).`;
+            await loadMaintenance();
+        } else {
+            msgEl.className = 'msg error';
+            msgEl.textContent = data.message || 'Erreur lors de la restauration';
+        }
+    } catch (err) {
+        msgEl.className = 'msg error';
+        msgEl.textContent = 'Erreur de connexion au serveur';
+    }
+}
+
+async function deleteBackup(filename) {
+    if (!confirm(`Supprimer définitivement la sauvegarde ${filename} ?`)) return;
+    const msgEl = document.getElementById('maint-backups-msg');
+    msgEl.textContent = '';
+    try {
+        const res = await fetch('../api/maintenance.php?action=delete-backup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename }),
+        });
+        const data = await res.json();
+        if (data.success) await loadMaintenance();
+        else { msgEl.className = 'msg error'; msgEl.textContent = data.message || 'Erreur lors de la suppression'; }
+    } catch (err) {
+        msgEl.className = 'msg error';
+        msgEl.textContent = 'Erreur de connexion au serveur';
+    }
+}
+
+async function loadMaintenanceLog() {
+    const tbody = document.getElementById('maint-log-tbody');
+    try {
+        const res = await fetch('../api/maintenance.php?action=log');
+        const data = await res.json();
+        if (!data.success || !data.lines.length) {
+            tbody.innerHTML = `<tr><td style="color:var(--text-secondary);">Aucune entrée pour le moment (mises à jour, sauvegardes et restaurations y sont journalisées).</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.lines.map(line => `<tr><td style="font-family:monospace;font-size:0.8rem;white-space:pre-wrap;">${escapeHtml(line)}</td></tr>`).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td style="color:var(--danger);">Erreur de chargement du journal</td></tr>`;
+    }
+}
+
+document.getElementById('maint-log-refresh-btn').addEventListener('click', loadMaintenanceLog);
+document.getElementById('maint-log-clear-btn').addEventListener('click', async () => {
+    if (!confirm('Vider intégralement le journal de maintenance ?')) return;
+    try {
+        await fetch('../api/maintenance.php?action=clear-log', { method: 'POST' });
+        await loadMaintenanceLog();
+    } catch (err) { /* ignore */ }
+});
 
 document.getElementById('year').textContent = new Date().getFullYear();
 checkSession();

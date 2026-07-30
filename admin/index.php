@@ -30,6 +30,7 @@
                 <button type="button" class="tab-btn" data-tab="attempts">Résultats</button>
                 <button type="button" class="tab-btn" data-tab="tiles">Tuiles</button>
                 <button type="button" class="tab-btn" data-tab="users">Utilisateurs</button>
+                <button type="button" class="tab-btn" data-tab="maintenance">Maintenance</button>
             </div>
             <a href="../dashboard.php" class="secondary btn">Dashboard</a>
             <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
@@ -95,6 +96,62 @@
             </table>
         </div>
         <p class="msg" id="users-msg"></p>
+    </div>
+
+    <!-- ---------- ONGLET MAINTENANCE ---------- -->
+    <div id="tab-maintenance" class="tab-panel hidden">
+        <div class="panel" style="margin-bottom:20px;">
+            <h2 style="margin-top:0;">Version de l'application</h2>
+            <div class="meta">
+                <span class="pill" id="maint-version-pill">Version : —</span>
+                <span class="pill" id="maint-backup-count-pill">0 sauvegarde(s)</span>
+            </div>
+        </div>
+
+        <div id="maint-github-card" class="panel hidden" style="margin-bottom:20px;">
+            <h2 style="margin-top:0;">Mise à jour depuis GitHub</h2>
+            <p class="modal-hint">Vérifie la dernière release publiée sur le dépôt GitHub configuré (voir <code>includes/db-config.php</code>) et propose de l'appliquer directement (même sauvegarde automatique que la mise à jour par upload).</p>
+            <button type="button" class="secondary" id="maint-github-check-btn">Vérifier les mises à jour</button>
+            <div id="maint-github-result" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+            <h2 style="margin-top:0;">Mettre à jour l'application</h2>
+            <p class="modal-hint">Déposez le fichier <code>.zip</code> de la nouvelle version. Une sauvegarde complète du code actuel est créée automatiquement avant toute modification ; la mise à jour est bloquée si la sauvegarde ne peut pas être réalisée intégralement. <code>includes/db-config.php</code>, <code>data/</code> et <code>uploads/questions/</code> (images des questions) ne sont jamais remplacés.</p>
+            <input type="file" id="maint-update-file" accept=".zip" style="margin-bottom:12px;">
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><input type="checkbox" id="maint-update-confirm" style="width:auto;"> Je comprends que cette opération va remplacer les fichiers de l'application.</label>
+            <button type="button" id="maint-update-btn">Lancer la mise à jour</button>
+            <p class="msg" id="maint-update-msg"></p>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;padding:0;">
+            <div style="padding:24px 24px 0;">
+                <h2 style="margin-top:0;">Sauvegardes de code</h2>
+                <p class="modal-hint">Une sauvegarde complète est créée automatiquement avant chaque mise à jour ; seules les 10 plus récentes sont conservées. Restaurer remplace les fichiers actuels par ceux de la sauvegarde choisie (hors chemins protégés).</p>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Fichier</th><th>Créée le</th><th>Taille</th><th></th></tr></thead>
+                    <tbody id="maint-backups-tbody"></tbody>
+                </table>
+            </div>
+            <p class="msg" id="maint-backups-msg" style="padding:0 24px 16px;"></p>
+        </div>
+
+        <div class="panel" style="padding:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:24px 24px 0;flex-wrap:wrap;gap:10px;">
+                <h2 style="margin:0;">Journal de maintenance</h2>
+                <div style="display:flex;gap:10px;">
+                    <button type="button" class="secondary" id="maint-log-refresh-btn">Actualiser</button>
+                    <button type="button" class="danger" id="maint-log-clear-btn">Vider le journal</button>
+                </div>
+            </div>
+            <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+                <table>
+                    <tbody id="maint-log-tbody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 

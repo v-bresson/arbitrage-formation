@@ -16,10 +16,19 @@ Application web PHP + JS pour créer des QCM et faire passer des questionnaires 
   - **Résultats** : archive de **toutes** les tentatives (entraînement et examen), avec statut (en cours / terminée / expirée), conservée même si le questionnaire ou les questions sont ensuite modifiés ou supprimés.
   - **Tuiles** : gestion du contenu du dashboard (nom, description, icône, ordre d'affichage, réservée ou non aux admins). Une tuile de type "Questionnaires" pointe vers le module intégré ; une tuile de type "Lien" pointe vers une URL (utile pour brancher plus tard d'autres modules ArcheryOps).
   - **Utilisateurs** : création/modification des comptes (identifiant, mot de passe, rôle admin/utilisateur, actif/inactif). Il doit toujours rester au moins un administrateur actif (garde-fou sur la suppression/rétrogradation).
+  - **Maintenance** : mise à jour de l'application par upload d'un fichier `.zip`, ou directement depuis la dernière release d'un dépôt GitHub configuré. Une sauvegarde complète du code est créée automatiquement avant toute mise à jour ou restauration ; historique consultable et restaurable depuis l'onglet, avec un journal détaillé de chaque opération (voir plus bas).
 
 Le nom d'utilisateur connecté sert directement d'identifiant candidat pour les questionnaires (plus besoin de ressaisir son nom) : il identifie aussi la reprise de tentative et le comptage des tentatives sur les examens.
 
 > Architecture multi-modules : ce module vit pour l'instant avec sa propre base d'utilisateurs (table `users`) et sa propre session. Le passage à un référentiel d'utilisateurs et une méthode d'authentification centralisés (ArcheryOps Dashboard) est identifié comme un chantier à part entière, à traiter plus tard sans que cela ne bloque le fonctionnement autonome actuel.
+
+### Mise à jour, sauvegardes et journal (onglet Maintenance)
+
+- **Upload manuel** : déposer un fichier `.zip` de la nouvelle version. Avant toute application, une sauvegarde complète du code actuel est créée dans `backups/` (bloquante : si la sauvegarde échoue ou est incomplète, la mise à jour est annulée). L'archive fournie doit contenir `index.php` et `admin/index.php` (à la racine, ou dans un unique dossier englobant — cas des exports GitHub) : c'est la vérification qui atteste qu'il s'agit bien d'une version de cette application avant toute copie de fichiers.
+- **Mise à jour depuis GitHub** : optionnelle, à activer en ajoutant une clé `github` (`token`, `owner`, `repo`) dans `includes/db-config.php` (voir `includes/db-config.sample.php`). L'onglet Maintenance propose alors de vérifier la dernière release publiée et de l'appliquer en un clic (même mécanisme de sauvegarde automatique).
+- **Chemins jamais écrasés**, quel que soit le contenu de l'archive : `includes/db-config.php`, `data/`, `uploads/questions/` (images des questions) et `backups/` lui-même. La copie est **additive** : un fichier absent de la nouvelle archive mais présent sur le disque n'est jamais supprimé.
+- **Sauvegardes** : les 10 plus récentes sont conservées (rotation automatique), consultables et restaurables individuellement depuis l'onglet ; restaurer applique le même mécanisme de copie sélective qu'une mise à jour.
+- **Journal de maintenance** (`backups/maintenance.log`) : historique de chaque sauvegarde, mise à jour, restauration ou échec, avec date, auteur et détail ; purgé automatiquement au-delà de 90 jours, ou vidable manuellement.
 
 ### Fonctionnement du minuteur et des tentatives d'examen
 
@@ -63,12 +72,16 @@ api/tiles.php                   Liste des tuiles (utilisateur connecté) + CRUD 
 api/questions.php               CRUD + import questions (admin)
 api/quizzes.php                  CRUD questionnaires + archive des tentatives (admin)
 api/attempt.php                  Passage de questionnaire (utilisateur connecté) : liste, démarrage/reprise, soumission
+api/maintenance.php               Mise à jour (zip/GitHub), sauvegardes, journal (admin)
 includes/db.php                   Connexion MariaDB/MySQL (PDO) + création du schéma
-includes/db-config.sample.php      Modèle de fichier de config DB (à copier en db-config.php)
+includes/db-config.sample.php      Modèle de fichier de config DB (à copier en db-config.php), avec clé GitHub optionnelle
+includes/maintenance.php           Sauvegarde/restauration de code, extraction de zip, intégration GitHub, journal
 includes/require_user.php          Garde d'accès : utilisateur connecté
 includes/require_admin.php         Garde d'accès : rôle admin
 includes/xlsx_reader.php           Lecteur .xlsx minimaliste sans dépendance
 includes/uploads.php               Gestion des images jointes aux questions
 assets/style.css                   Charte graphique (reprise de serveur-home)
 uploads/questions/                 Images jointes aux questions (non versionnées)
+VERSION.txt                        Version du code déployé, affichée dans l'onglet Maintenance
+backups/                           Sauvegardes de code + journal de maintenance (non versionnés)
 ```
