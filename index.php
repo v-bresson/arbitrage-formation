@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<div class="brand">
+<div class="brand center">
     <img src="assets/logo.png" alt="ArcheryOps Judging">
     <p class="subtitle" id="page-brand-subtitle">Connexion</p>
 </div>
