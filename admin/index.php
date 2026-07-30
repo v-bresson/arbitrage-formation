@@ -449,7 +449,7 @@
     </div>
 </div>
 
-<footer>&copy; <span id="year"></span> ArcheryOps Judging — Administration</footer>
+<footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage — Administration</footer>
 
 <script src="../assets/mvvm.js"></script>
 <script src="app.js"></script>

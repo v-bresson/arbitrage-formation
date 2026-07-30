@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php endif; ?>
 </div>
 
-<footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
+<footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage</footer>
 <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
 
 </body>

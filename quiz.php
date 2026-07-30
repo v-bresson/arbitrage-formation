@@ -70,7 +70,7 @@
     </div>
 </div>
 
-<footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
+<footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage</footer>
 
 <script src="assets/mvvm.js"></script>
 <script>
