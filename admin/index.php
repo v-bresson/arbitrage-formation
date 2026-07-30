@@ -37,7 +37,7 @@
             <button type="button" class="sidebar-link active" data-tab="overview">Dashboard</button>
 
             <div class="sidebar-group open">
-                <button type="button" class="sidebar-group-toggle">Candidats arbitres</button>
+                <button type="button" class="sidebar-group-toggle">Questionnaires</button>
                 <div class="sidebar-submenu">
                     <button type="button" class="sidebar-link" data-tab="questions">Banque de questions</button>
                     <button type="button" class="sidebar-link" data-tab="quizzes">Questionnaires</button>
@@ -46,13 +46,10 @@
             </div>
 
             <button type="button" class="sidebar-link" data-tab="users">Comptes utilisateurs</button>
-
-            <div class="sidebar-group">
-                <button type="button" class="sidebar-group-toggle">Administration</button>
-                <div class="sidebar-submenu">
-                    <button type="button" class="sidebar-link" data-tab="maintenance">Mise à jour système</button>
-                </div>
-            </div>
+            <button type="button" class="sidebar-link" data-tab="candidats">Candidats</button>
+            <button type="button" class="sidebar-link" data-tab="formateurs">Formateur</button>
+            <button type="button" class="sidebar-link" data-tab="roles">Rôles</button>
+            <button type="button" class="sidebar-link" data-tab="maintenance">Mise à jour système</button>
         </nav>
 
         <div class="admin-content">
@@ -135,7 +132,42 @@
                 <p class="msg" id="users-msg"></p>
             </div>
 
-            <!-- ---------- ADMINISTRATION > MISE A JOUR SYSTEME ---------- -->
+            <!-- ---------- CANDIDATS ---------- -->
+            <div id="tab-candidats" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Candidats</h2>
+                <div class="table-wrap panel" style="padding:0;">
+                    <table>
+                        <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead>
+                        <tbody id="candidats-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="msg" id="candidats-msg"></p>
+            </div>
+
+            <!-- ---------- FORMATEUR ---------- -->
+            <div id="tab-formateurs" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Formateur</h2>
+                <div class="table-wrap panel" style="padding:0;">
+                    <table>
+                        <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead>
+                        <tbody id="formateurs-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="msg" id="formateurs-msg"></p>
+            </div>
+
+            <!-- ---------- ROLES ---------- -->
+            <div id="tab-roles" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Rôles</h2>
+                <p class="modal-hint" style="margin-bottom:16px;">Le groupe de droits par défaut de chaque rôle, par section admin. Super-Admin a toujours un accès total et n'est pas modifiable. Les rôles personnalisés peuvent être ajoutés et supprimés (tant qu'aucun compte ne les utilise) ; les rôles historiques (Candidat, Formateur, Membre CRA) restent, seules leurs permissions se modifient.</p>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+                    <button type="button" id="new-role-btn">+ Nouveau rôle</button>
+                </div>
+                <div class="grid" id="roles-grid"></div>
+                <p class="msg" id="roles-msg"></p>
+            </div>
+
+            <!-- ---------- MISE A JOUR SYSTEME ---------- -->
             <div id="tab-maintenance" class="tab-panel hidden">
                 <h2 style="margin-bottom:16px;">Mise à jour système</h2>
                 <div class="panel" style="margin-bottom:20px;">
@@ -340,6 +372,22 @@
                 <button type="submit" id="quiz-save-btn">Enregistrer</button>
             </div>
             <div class="msg error" id="quiz-modal-msg"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODALE NOUVEAU ROLE ================= -->
+<div id="role-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2>Nouveau rôle</h2>
+        <form id="role-form" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="field"><label>Nom du rôle</label><input type="text" id="role-label" required placeholder="Ex. Arbitre stagiaire"></div>
+            <p class="modal-hint" style="margin:0;">Les permissions du nouveau rôle sont initialisées à « Aucun accès » sur toutes les sections ; modifiez-les ensuite depuis sa carte.</p>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="role-cancel-btn">Annuler</button>
+                <button type="submit" id="role-save-btn">Créer</button>
+            </div>
+            <div class="msg error" id="role-modal-msg"></div>
         </form>
     </div>
 </div>

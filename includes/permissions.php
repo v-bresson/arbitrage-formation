@@ -11,6 +11,10 @@
 // la surcharge ne s'applique qu'à cet utilisateur.
 // ===================================================================
 
+// Rôles fixes historiques (utilisés comme alias/valeurs de repli) ; la
+// liste réelle des rôles disponibles est désormais dynamique, stockée en
+// base (table `roles`) et personnalisable depuis l'onglet Rôles de
+// l'administration — voir qa_all_roles()/qa_role_label() ci-dessous.
 const QA_ROLES = ['candidat', 'formateur', 'membre_cra', 'super_admin'];
 
 const QA_ROLE_LABELS = [
@@ -47,36 +51,44 @@ const QA_OPTIONS_PRATIQUE = ['Cible', 'Nat/3D', 'Campagne'];
 function qa_normalize_role($role) {
     if ($role === 'admin') return 'super_admin';
     if ($role === 'user') return 'candidat';
-    return in_array($role, QA_ROLES, true) ? $role : 'candidat';
+    return $role ?: 'candidat';
 }
 
-function qa_role_default_permissions($role) {
+// Liste des rôles disponibles (4 rôles historiques + rôles personnalisés
+// ajoutés depuis l'onglet Rôles de l'administration).
+function qa_all_roles($pdo) {
+    return $pdo->query('SELECT role_key, label, is_system FROM roles ORDER BY is_system DESC, label')->fetchAll();
+}
+
+function qa_role_exists($pdo, $role) {
+    $stmt = $pdo->prepare('SELECT 1 FROM roles WHERE role_key = ?');
+    $stmt->execute([$role]);
+    return (bool)$stmt->fetch();
+}
+
+function qa_role_label($pdo, $role) {
+    $stmt = $pdo->prepare('SELECT label FROM roles WHERE role_key = ?');
+    $stmt->execute([$role]);
+    $row = $stmt->fetch();
+    return $row ? $row['label'] : (QA_ROLE_LABELS[$role] ?? $role);
+}
+
+// Groupe de droits par défaut d'un rôle : super_admin a toujours accès
+// total (non stocké, non modifiable) ; les autres rôles (historiques ou
+// personnalisés) sont stockés dans la table role_permissions et éditables
+// depuis l'onglet Rôles de l'administration.
+function qa_role_default_permissions($pdo, $role) {
     $role = qa_normalize_role($role);
     if ($role === 'super_admin') {
         return array_fill_keys(array_keys(QA_PERMISSION_SECTIONS), 'manage');
     }
-    if ($role === 'formateur') {
-        return [
-            'questions' => 'manage',
-            'quizzes' => 'manage',
-            'attempts' => 'read',
-            'users' => 'none',
-            'tiles' => 'none',
-            'maintenance' => 'none',
-        ];
+    $stmt = $pdo->prepare('SELECT section, level FROM role_permissions WHERE role_key = ?');
+    $stmt->execute([$role]);
+    $perms = array_fill_keys(array_keys(QA_PERMISSION_SECTIONS), 'none');
+    foreach ($stmt->fetchAll() as $row) {
+        if (isset($perms[$row['section']])) $perms[$row['section']] = $row['level'];
     }
-    if ($role === 'membre_cra') {
-        return [
-            'questions' => 'read',
-            'quizzes' => 'read',
-            'attempts' => 'manage',
-            'users' => 'none',
-            'tiles' => 'none',
-            'maintenance' => 'none',
-        ];
-    }
-    // candidat
-    return array_fill_keys(array_keys(QA_PERMISSION_SECTIONS), 'none');
+    return $perms;
 }
 
 function qa_user_overrides($pdo, $userId) {
@@ -94,8 +106,8 @@ function qa_user_overrides($pdo, $userId) {
 // surcharge possible).
 function qa_effective_permissions($pdo, $userId, $role) {
     $role = qa_normalize_role($role);
-    if ($role === 'super_admin') return qa_role_default_permissions('super_admin');
-    $perms = qa_role_default_permissions($role);
+    if ($role === 'super_admin') return qa_role_default_permissions($pdo, 'super_admin');
+    $perms = qa_role_default_permissions($pdo, $role);
     foreach (qa_user_overrides($pdo, $userId) as $section => $level) {
         if (isset($perms[$section])) $perms[$section] = $level;
     }

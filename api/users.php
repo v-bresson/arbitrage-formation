@@ -20,7 +20,7 @@ function qa_user_row_out($pdo, $row) {
         'id' => (int)$row['id'],
         'username' => $row['username'],
         'role' => $role,
-        'role_label' => QA_ROLE_LABELS[$role] ?? $role,
+        'role_label' => qa_role_label($pdo, $role),
         'actif' => (bool)$row['actif'],
         'nom' => $row['nom'],
         'prenom' => $row['prenom'],
@@ -50,10 +50,14 @@ function qa_super_admin_count($pdo, $excludeId = null) {
 if ($action === 'list') {
     $stmt = $pdo->query('SELECT * FROM users ORDER BY username');
     $users = array_map(fn($row) => qa_user_row_out($pdo, $row), $stmt->fetchAll());
+    $roles = qa_all_roles($pdo);
+    $roleKeys = array_column($roles, 'role_key');
+    $roleLabels = array_combine($roleKeys, array_column($roles, 'label'));
     echo json_encode([
         'users' => $users,
-        'role_labels' => QA_ROLE_LABELS,
-        'role_defaults' => array_combine(QA_ROLES, array_map('qa_role_default_permissions', QA_ROLES)),
+        'roles' => $roles,
+        'role_labels' => $roleLabels,
+        'role_defaults' => array_combine($roleKeys, array_map(fn($r) => qa_role_default_permissions($pdo, $r), $roleKeys)),
         'sections' => QA_PERMISSION_SECTIONS,
     ]);
     exit;
@@ -64,7 +68,7 @@ if ($action === 'save') {
     $id = $body['id'] ?? null;
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
-    $role = in_array($body['role'] ?? '', QA_ROLES, true) ? $body['role'] : 'candidat';
+    $role = qa_role_exists($pdo, $body['role'] ?? '') ? $body['role'] : 'candidat';
     $actif = !empty($body['actif']) ? 1 : 0;
     $nom = trim($body['nom'] ?? '') ?: null;
     $prenom = trim($body['prenom'] ?? '') ?: null;

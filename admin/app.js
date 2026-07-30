@@ -45,6 +45,9 @@ const TAB_SECTIONS = {
     quizzes: 'quizzes',
     attempts: 'attempts',
     users: 'users',
+    candidats: 'users',
+    formateurs: 'users',
+    roles: 'users',
     maintenance: 'maintenance',
 };
 
@@ -72,6 +75,7 @@ function applyPermissionGating() {
     document.getElementById('import-btn').classList.toggle('hidden', !canManage('questions'));
     document.getElementById('new-quiz-btn').classList.toggle('hidden', !canManage('quizzes'));
     document.getElementById('new-user-btn').classList.toggle('hidden', !canManage('users'));
+    document.getElementById('new-role-btn').classList.toggle('hidden', !canManage('users'));
 
     // Si l'onglet actif n'est plus accessible (permission retirée entre
     // deux sessions), retombe sur le premier onglet visible.
@@ -91,6 +95,7 @@ const vm = qaReactive({
     quizzes: [],
     attempts: [],
     users: [],
+    roles: [],
     maint: {
         version: '',
         backupCount: 0,
@@ -104,6 +109,7 @@ const vm = qaReactive({
         quizzes: '',
         attempts: '',
         users: '',
+        roles: '',
         maintBackups: '',
     },
 });
@@ -171,7 +177,8 @@ function selectSidebarTab(tab) {
 
     if (tab === 'quizzes') loadQuizzes();
     if (tab === 'attempts') loadAttempts();
-    if (tab === 'users') loadUsers();
+    if (tab === 'users' || tab === 'candidats' || tab === 'formateurs') loadUsers();
+    if (tab === 'roles') loadRoles();
     if (tab === 'maintenance') loadMaintenance();
 }
 
@@ -736,6 +743,14 @@ qaWatchEffect(() => {
 let roleDefaults = {};
 let roleLabels = {};
 let permissionSections = {};
+let roleList = [];
+
+function populateUserRoleOptions(selectedRole) {
+    const select = document.getElementById('user-role');
+    if (!roleList.length) return;
+    select.innerHTML = roleList.map(r => `<option value="${r.role_key}">${escapeHtml(r.label)}</option>`).join('');
+    if (selectedRole) select.value = selectedRole;
+}
 
 async function loadUsers() {
     try {
@@ -745,21 +760,23 @@ async function loadUsers() {
         roleDefaults = data.role_defaults || {};
         roleLabels = data.role_labels || {};
         permissionSections = data.sections || {};
+        roleList = data.roles || [];
+        populateUserRoleOptions(document.getElementById('user-role').value);
         vm.msg.users = vm.users.length ? '' : 'Aucun utilisateur.';
     } catch (err) {
         vm.msg.users = 'Erreur de chargement des utilisateurs';
     }
 }
 
-// ---------- Rendu : tableau des utilisateurs ----------
-qaWatchEffect(() => {
-    const tbody = document.getElementById('users-tbody');
-    if (!vm.users.length) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">${escapeHtml(vm.msg.users || 'Aucun utilisateur.')}</td></tr>`;
+// ---------- Rendu : tableau des utilisateurs (Comptes utilisateurs / Candidats / Formateur) ----------
+function renderUsersTable(tbodyId, users, emptyMsg) {
+    const tbody = document.getElementById(tbodyId);
+    if (!users.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">${escapeHtml(emptyMsg)}</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = vm.users.map(u => `
+    tbody.innerHTML = users.map(u => `
         <tr>
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
@@ -775,6 +792,12 @@ qaWatchEffect(() => {
 
     tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
     tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
+}
+
+qaWatchEffect(() => {
+    renderUsersTable('users-tbody', vm.users, vm.msg.users || 'Aucun utilisateur.');
+    renderUsersTable('candidats-tbody', vm.users.filter(u => u.role === 'candidat'), 'Aucun candidat.');
+    renderUsersTable('formateurs-tbody', vm.users.filter(u => u.role === 'formateur'), 'Aucun formateur.');
 });
 
 const userModal = document.getElementById('user-modal-overlay');
@@ -940,6 +963,146 @@ async function deleteUser(id) {
         vm.msg.users = 'Erreur de connexion au serveur';
     }
 }
+
+// ================= ROLES =================
+const PERMISSION_LEVEL_LABELS_ROLES = { none: 'aucun accès', read: 'lecture seule', manage: 'gestion complète' };
+
+async function loadRoles() {
+    try {
+        const res = await fetch('../api/roles.php?action=list');
+        const data = await res.json();
+        vm.roles = data.roles || [];
+        permissionSections = data.sections || permissionSections;
+        vm.msg.roles = vm.roles.length ? '' : 'Aucun rôle.';
+    } catch (err) {
+        vm.msg.roles = 'Erreur de chargement des rôles';
+    }
+}
+
+qaWatchEffect(() => {
+    const grid = document.getElementById('roles-grid');
+    document.getElementById('roles-msg').textContent = vm.msg.roles;
+
+    grid.innerHTML = vm.roles.map(r => {
+        const isSuperAdmin = r.role_key === 'super_admin';
+        return `
+        <div class="card" data-role-key="${escapeHtml(r.role_key)}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <h2>${escapeHtml(r.label)}</h2>
+                ${r.is_system ? '<span class="pill">Système</span>' : ''}
+            </div>
+            ${isSuperAdmin ? '<p class="modal-hint" style="margin:0;">Accès total à toutes les sections, non modifiable.</p>' : `
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Section</th><th>Accès</th></tr></thead>
+                    <tbody>
+                        ${Object.keys(permissionSections).map(section => `
+                        <tr>
+                            <td>${escapeHtml(permissionSections[section])}</td>
+                            <td>
+                                <select class="role-perm-select" data-section="${section}">
+                                    <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
+                                    <option value="read" ${r.permissions[section] === 'read' ? 'selected' : ''}>Lecture seule</option>
+                                    <option value="manage" ${r.permissions[section] === 'manage' ? 'selected' : ''}>Gestion complète</option>
+                                </select>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <div class="row-actions" style="margin-top:8px;">
+                <button type="button" class="secondary save-role-btn" data-id="${escapeHtml(r.role_key)}">Enregistrer</button>
+                ${!r.is_system ? `<button type="button" class="danger delete-role-btn" data-id="${escapeHtml(r.role_key)}">Supprimer</button>` : ''}
+            </div>
+            <span class="msg success role-saved-msg" data-id="${escapeHtml(r.role_key)}" style="display:none;">Enregistré</span>
+            `}
+        </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.save-role-btn').forEach(btn => btn.addEventListener('click', () => saveRolePermissions(btn.dataset.id)));
+    grid.querySelectorAll('.delete-role-btn').forEach(btn => btn.addEventListener('click', () => deleteRole(btn.dataset.id)));
+});
+
+async function saveRolePermissions(roleKey) {
+    const card = document.querySelector(`.card[data-role-key="${roleKey}"]`);
+    if (!card) return;
+    const permissions = {};
+    card.querySelectorAll('.role-perm-select').forEach(sel => { permissions[sel.dataset.section] = sel.value; });
+    const role = vm.roles.find(r => r.role_key === roleKey);
+
+    try {
+        const res = await fetch('../api/roles.php?action=save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role_key: roleKey, label: role ? role.label : '', permissions }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            const savedMsg = card.querySelector('.role-saved-msg');
+            savedMsg.style.display = '';
+            setTimeout(() => { savedMsg.style.display = 'none'; }, 1500);
+            await loadRoles();
+        } else {
+            vm.msg.roles = data.message || "Erreur lors de l'enregistrement";
+        }
+    } catch (err) {
+        vm.msg.roles = 'Erreur de connexion au serveur';
+    }
+}
+
+async function deleteRole(roleKey) {
+    if (!confirm('Supprimer ce rôle ?')) return;
+    try {
+        const res = await fetch('../api/roles.php?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role_key: roleKey }),
+        });
+        const data = await res.json();
+        if (data.success) await loadRoles();
+        else vm.msg.roles = data.message || 'Erreur lors de la suppression';
+    } catch (err) {
+        vm.msg.roles = 'Erreur de connexion au serveur';
+    }
+}
+
+const roleModal = document.getElementById('role-modal-overlay');
+const roleForm = document.getElementById('role-form');
+
+document.getElementById('new-role-btn').addEventListener('click', () => {
+    document.getElementById('role-modal-msg').textContent = '';
+    roleForm.reset();
+    roleModal.classList.remove('hidden');
+});
+document.getElementById('role-cancel-btn').addEventListener('click', () => roleModal.classList.add('hidden'));
+roleModal.addEventListener('click', e => { if (e.target === roleModal) roleModal.classList.add('hidden'); });
+
+roleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const modalMsg = document.getElementById('role-modal-msg');
+    modalMsg.textContent = '';
+    const saveBtn = document.getElementById('role-save-btn');
+    saveBtn.disabled = true;
+
+    try {
+        const res = await fetch('../api/roles.php?action=save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role_key: '', label: document.getElementById('role-label').value, permissions: {} }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            roleModal.classList.add('hidden');
+            await loadRoles();
+        } else {
+            modalMsg.textContent = data.message || "Erreur lors de l'enregistrement";
+        }
+    } catch (err) {
+        modalMsg.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        saveBtn.disabled = false;
+    }
+});
 
 // ================= MAINTENANCE (MISE A JOUR, SAUVEGARDES, LOGS) =================
 function formatBytes(bytes) {

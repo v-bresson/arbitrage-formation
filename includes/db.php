@@ -327,6 +327,51 @@ function get_db() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------
+    // Rôles disponibles (4 rôles historiques + rôles personnalisés créés
+    // depuis l'onglet Rôles de l'administration) et groupe de droits par
+    // défaut de chaque rôle (une ligne par section admin ; absente =
+    // aucun accès). super_admin n'a pas de lignes ici : accès total fixe,
+    // non modifiable, géré en code (voir qa_role_default_permissions).
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS roles (
+        role_key VARCHAR(50) NOT NULL PRIMARY KEY,
+        label VARCHAR(100) NOT NULL,
+        is_system TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $roleCount = (int)$pdo->query('SELECT COUNT(*) c FROM roles')->fetch()['c'];
+    if ($roleCount === 0) {
+        $pdo->exec("INSERT INTO roles (role_key, label, is_system) VALUES
+            ('candidat', 'Candidat', 1),
+            ('formateur', 'Formateur', 1),
+            ('membre_cra', 'Membre CRA', 1),
+            ('super_admin', 'Super-Admin', 1)");
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS role_permissions (
+        role_key VARCHAR(50) NOT NULL,
+        section VARCHAR(50) NOT NULL,
+        level VARCHAR(20) NOT NULL,
+        PRIMARY KEY (role_key, section)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $rolePermCount = (int)$pdo->query('SELECT COUNT(*) c FROM role_permissions')->fetch()['c'];
+    if ($rolePermCount === 0) {
+        $roleDefaults = [
+            'formateur' => ['questions' => 'manage', 'quizzes' => 'manage', 'attempts' => 'read', 'users' => 'none', 'tiles' => 'none', 'maintenance' => 'none'],
+            'membre_cra' => ['questions' => 'read', 'quizzes' => 'read', 'attempts' => 'manage', 'users' => 'none', 'tiles' => 'none', 'maintenance' => 'none'],
+            'candidat' => ['questions' => 'none', 'quizzes' => 'none', 'attempts' => 'none', 'users' => 'none', 'tiles' => 'none', 'maintenance' => 'none'],
+        ];
+        $insertPerm = $pdo->prepare('INSERT INTO role_permissions (role_key, section, level) VALUES (?, ?, ?)');
+        foreach ($roleDefaults as $roleKey => $sections) {
+            foreach ($sections as $section => $level) {
+                $insertPerm->execute([$roleKey, $section, $level]);
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------
     // Tuiles du dashboard : configurables depuis l'admin. type=questionnaire
     // pointe toujours vers quiz.php (module de questionnaires intégré) ;
     // type=lien pointe vers l'URL définie (autre module de la future
