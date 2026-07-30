@@ -57,6 +57,13 @@
         <div class="admin-content">
             <!-- ---------- DASHBOARD (VUE D'ENSEMBLE) ---------- -->
             <div id="tab-overview" class="tab-panel">
+                <div id="overview-db-migration-banner" class="panel hidden" style="border-color:var(--danger);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                    <div>
+                        <p style="font-weight:600;color:var(--danger);margin-bottom:4px;">Mise à jour de la base de données nécessaire</p>
+                        <p id="overview-db-migration-text" style="color:var(--text-secondary);font-size:0.9rem;"></p>
+                    </div>
+                    <button type="button" class="danger" id="overview-db-migration-btn">Aller à la mise à jour</button>
+                </div>
                 <div class="grid">
                     <div class="card"><p style="color:var(--text-secondary);">Questions</p><h2 id="overview-questions-count" style="font-size:2rem;">—</h2></div>
                     <div class="card"><p style="color:var(--text-secondary);">Questionnaires</p><h2 id="overview-quizzes-count" style="font-size:2rem;">—</h2></div>
@@ -147,6 +154,17 @@
                         <span class="pill" id="maint-version-pill">Version : —</span>
                         <span class="pill" id="maint-backup-count-pill">0 sauvegarde(s)</span>
                     </div>
+                </div>
+
+                <div class="panel" style="margin-bottom:20px;">
+                    <h2 style="margin-top:0;">Base de données</h2>
+                    <p class="modal-hint">Une mise à jour de code peut nécessiter une évolution de la base de données (nouvelle colonne, nouvelle table). Cette évolution n'est jamais appliquée automatiquement : elle apparaît ici et doit être lancée volontairement.</p>
+                    <div id="maint-db-uptodate-msg" class="msg success hidden">La base de données est à jour.</div>
+                    <div id="maint-db-pending" class="hidden">
+                        <ul id="maint-db-pending-list" style="margin:10px 0;padding-left:20px;color:var(--text-secondary);"></ul>
+                        <button type="button" class="danger" id="maint-db-migrate-btn">Lancer la mise à jour de la base de données</button>
+                    </div>
+                    <p class="msg" id="maint-db-migrate-msg"></p>
                 </div>
 
                 <div id="maint-github-card" class="panel hidden" style="margin-bottom:20px;">

@@ -92,6 +92,11 @@ if ($action === 'save') {
             $id = $pdo->lastInsertId();
         }
     } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) === 1054) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "La base de données n'est pas à jour : un administrateur doit lancer la mise à jour de la base depuis Administration > Mise à jour système avant d'enregistrer une fiche profil complète."]);
+            exit;
+        }
         http_response_code(422);
         echo json_encode(['success' => false, 'message' => 'Cet identifiant est déjà utilisé']);
         exit;

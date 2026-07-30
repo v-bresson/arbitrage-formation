@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/require_admin.php';
 require_once __DIR__ . '/../includes/maintenance.php';
+require_once __DIR__ . '/../includes/db.php';
 
 require_admin();
 header('Content-Type: application/json');
@@ -10,14 +11,44 @@ $method = $_SERVER['REQUEST_METHOD'];
 $actingUsername = $_SESSION['username'] ?? 'inconnu';
 
 if ($method === 'GET' && $action === 'state') {
+    $pdo = get_db();
     $backups = qa_list_backups();
+    $pending = qa_pending_migrations($pdo);
     echo json_encode([
         'success' => true,
         'app_version' => qa_current_app_version(),
         'backups' => $backups,
         'backup_count' => count($backups),
         'github_configured' => qa_github_config() !== null,
+        'pending_migrations' => array_map(fn($m) => ['id' => $m['id'], 'description' => $m['description']], $pending),
     ]);
+    exit;
+}
+
+if ($method === 'POST' && $action === 'migrate-db') {
+    $pdo = get_db();
+    $pending = qa_pending_migrations($pdo);
+
+    if (!$pending) {
+        echo json_encode(['success' => true, 'applied' => [], 'message' => 'Aucune mise à jour de base de données en attente']);
+        exit;
+    }
+
+    $applied = [];
+    try {
+        foreach ($pending as $migration) {
+            qa_apply_migration($pdo, $migration);
+            $applied[] = $migration['description'];
+            qa_maintenance_log("Mise à jour de la base de données par {$actingUsername} : " . $migration['description']);
+        }
+    } catch (Throwable $e) {
+        qa_maintenance_log("ÉCHEC mise à jour de la base de données par {$actingUsername} : " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour de la base de données : ' . $e->getMessage(), 'applied' => $applied]);
+        exit;
+    }
+
+    echo json_encode(['success' => true, 'applied' => $applied]);
     exit;
 }
 

@@ -31,17 +31,84 @@ function qa_db_configured() {
     return file_exists(__DIR__ . '/db-config.php') || getenv('DB_HOST') !== false;
 }
 
-// Ajoute une colonne à une table existante si elle n'y est pas déjà —
-// permet de faire évoluer le schéma (nouveaux champs profil utilisateur,
-// etc.) sur une installation existante sans script de migration séparé.
-function qa_add_column_if_missing($pdo, $table, $column, $definition) {
+function qa_column_exists($pdo, $table, $column) {
     $stmt = $pdo->prepare(
         'SELECT COUNT(*) c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
     );
     $stmt->execute([$table, $column]);
-    if ((int)$stmt->fetch()['c'] === 0) {
-        $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+    return (int)$stmt->fetch()['c'] > 0;
+}
+
+// ---------------------------------------------------------------------
+// Migrations de schéma : liste centrale des évolutions de la base au fil
+// des versions. Une migration n'est JAMAIS appliquée automatiquement sur
+// une installation existante (voir qa_sync_schema_migrations ci-dessous) —
+// elle doit être lancée volontairement par l'admin depuis l'onglet
+// Administration > Mise à jour système, après une mise à jour de code,
+// pour que l'admin sache explicitement qu'une modification de la base a
+// eu lieu plutôt que de la voir se produire en silence.
+// Sur une INSTALLATION NEUVE en revanche, les colonnes existent déjà
+// (CREATE TABLE ci-dessous les inclut) : la migration est alors marquée
+// automatiquement comme appliquée, sans ALTER TABLE ni notification.
+// ---------------------------------------------------------------------
+function qa_schema_migrations() {
+    return [
+        [
+            'id' => 'users_profil_2026_07',
+            'description' => "Ajout des champs profil sur les comptes utilisateurs (prénom, nom, email, téléphone, n° de licence, club)",
+            'columns' => [
+                ['table' => 'users', 'column' => 'nom', 'definition' => 'VARCHAR(191) NULL'],
+                ['table' => 'users', 'column' => 'prenom', 'definition' => 'VARCHAR(191) NULL'],
+                ['table' => 'users', 'column' => 'email', 'definition' => 'VARCHAR(191) NULL'],
+                ['table' => 'users', 'column' => 'numero_licence', 'definition' => 'VARCHAR(50) NULL'],
+                ['table' => 'users', 'column' => 'telephone', 'definition' => 'VARCHAR(30) NULL'],
+                ['table' => 'users', 'column' => 'club', 'definition' => 'VARCHAR(191) NULL'],
+            ],
+        ],
+    ];
+}
+
+function qa_migration_columns_present($pdo, $migration) {
+    foreach ($migration['columns'] as $col) {
+        if (!qa_column_exists($pdo, $col['table'], $col['column'])) return false;
     }
+    return true;
+}
+
+// Marque comme "appliquées" les migrations dont les colonnes sont déjà
+// toutes présentes (installation neuve, ou migration déjà appliquée
+// manuellement) — n'altère jamais le schéma lui-même.
+function qa_sync_schema_migrations($pdo) {
+    foreach (qa_schema_migrations() as $migration) {
+        if (qa_migration_columns_present($pdo, $migration)) {
+            $stmt = $pdo->prepare('INSERT IGNORE INTO schema_migrations (id) VALUES (?)');
+            $stmt->execute([$migration['id']]);
+        }
+    }
+}
+
+function qa_pending_migrations($pdo) {
+    $stmt = $pdo->query('SELECT id FROM schema_migrations');
+    $applied = array_column($stmt->fetchAll(), 'id');
+    $pending = [];
+    foreach (qa_schema_migrations() as $migration) {
+        if (!in_array($migration['id'], $applied, true)) {
+            $pending[] = $migration;
+        }
+    }
+    return $pending;
+}
+
+// Applique réellement une migration (ALTER TABLE) — appelé uniquement à
+// la demande explicite de l'admin (api/maintenance.php, action db-migrate).
+function qa_apply_migration($pdo, $migration) {
+    foreach ($migration['columns'] as $col) {
+        if (!qa_column_exists($pdo, $col['table'], $col['column'])) {
+            $pdo->exec("ALTER TABLE `{$col['table']}` ADD COLUMN `{$col['column']}` {$col['definition']}");
+        }
+    }
+    $stmt = $pdo->prepare('INSERT IGNORE INTO schema_migrations (id) VALUES (?)');
+    $stmt->execute([$migration['id']]);
 }
 
 function get_db() {
@@ -175,12 +242,6 @@ function get_db() {
         club VARCHAR(191) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    qa_add_column_if_missing($pdo, 'users', 'nom', 'VARCHAR(191) NULL');
-    qa_add_column_if_missing($pdo, 'users', 'prenom', 'VARCHAR(191) NULL');
-    qa_add_column_if_missing($pdo, 'users', 'email', 'VARCHAR(191) NULL');
-    qa_add_column_if_missing($pdo, 'users', 'numero_licence', 'VARCHAR(50) NULL');
-    qa_add_column_if_missing($pdo, 'users', 'telephone', 'VARCHAR(30) NULL');
-    qa_add_column_if_missing($pdo, 'users', 'club', 'VARCHAR(191) NULL');
 
     // ---------------------------------------------------------------
     // Tuiles du dashboard : configurables depuis l'admin. type=questionnaire
@@ -207,6 +268,15 @@ function get_db() {
         $pdo->exec("INSERT INTO tiles (nom, description, type, icone, admin_uniquement, ordre, actif) VALUES
             ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', 'target', 0, 1, 1)");
     }
+
+    // ---------------------------------------------------------------
+    // Suivi des migrations de schéma (voir qa_schema_migrations ci-dessus).
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (
+        id VARCHAR(191) NOT NULL PRIMARY KEY,
+        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    qa_sync_schema_migrations($pdo);
 
     return $pdo;
 }

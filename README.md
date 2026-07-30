@@ -38,6 +38,7 @@ Le nom d'utilisateur connecté sert directement d'identifiant candidat pour les 
 - **Chemins jamais écrasés**, quel que soit le contenu de l'archive : `includes/db-config.php`, `data/`, `uploads/questions/` (images des questions) et `backups/` lui-même. La copie est **additive** : un fichier absent de la nouvelle archive mais présent sur le disque n'est jamais supprimé.
 - **Sauvegardes** : les 10 plus récentes sont conservées (rotation automatique), consultables et restaurables individuellement depuis l'onglet ; restaurer applique le même mécanisme de copie sélective qu'une mise à jour.
 - **Journal de maintenance** (`backups/maintenance.log`) : historique de chaque sauvegarde, mise à jour, restauration ou échec, avec date, auteur et détail ; purgé automatiquement au-delà de 90 jours, ou vidable manuellement.
+- **Mise à jour de la base de données** : une mise à jour de code peut nécessiter une évolution du schéma (nouvelle colonne, nouvelle table). Cette évolution n'est **jamais appliquée automatiquement** sur une installation existante : un bandeau apparaît sur le Dashboard admin et un panneau dédié dans l'onglet Mise à jour système décrit ce qui est en attente ; l'admin lance l'opération volontairement d'un clic (journalisée comme le reste). Sur une installation neuve, le schéma est créé complet dès le départ : rien à migrer, aucun bandeau. Le registre des migrations vit dans `includes/db.php` (`qa_schema_migrations()`).
 
 ### Fonctionnement du minuteur et des tentatives d'examen
 

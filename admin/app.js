@@ -50,6 +50,7 @@ const vm = qaReactive({
         backups: [],
         githubConfigured: false,
         logLines: [],
+        pendingMigrations: [],
     },
     msg: {
         questions: '',
@@ -972,12 +973,68 @@ async function loadMaintenance() {
         vm.maint.backupCount = data.backup_count;
         vm.maint.backups = data.backups;
         vm.maint.githubConfigured = data.github_configured;
+        vm.maint.pendingMigrations = data.pending_migrations || [];
         vm.msg.maintBackups = '';
     } catch (err) {
         vm.msg.maintBackups = 'Erreur de chargement';
     }
     loadMaintenanceLog();
 }
+
+// ---------- Rendu : bandeau d'alerte sur le Dashboard ----------
+qaWatchEffect(() => {
+    const pending = vm.maint.pendingMigrations;
+    const banner = document.getElementById('overview-db-migration-banner');
+    banner.classList.toggle('hidden', !pending.length);
+    if (pending.length) {
+        document.getElementById('overview-db-migration-text').textContent = pending.map(m => m.description).join(' · ');
+    }
+});
+document.getElementById('overview-db-migration-btn').addEventListener('click', () => {
+    document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-maintenance').classList.remove('hidden');
+    const maintLink = document.querySelector('.sidebar-link[data-tab="maintenance"]');
+    maintLink.classList.add('active');
+    maintLink.closest('.sidebar-group').classList.add('open');
+});
+
+// ---------- Rendu : mise à jour de la base de données ----------
+qaWatchEffect(() => {
+    const pending = vm.maint.pendingMigrations;
+    document.getElementById('maint-db-uptodate-msg').classList.toggle('hidden', pending.length > 0);
+    document.getElementById('maint-db-pending').classList.toggle('hidden', pending.length === 0);
+    document.getElementById('maint-db-pending-list').innerHTML = pending.map(m => `<li>${escapeHtml(m.description)}</li>`).join('');
+});
+
+document.getElementById('maint-db-migrate-btn').addEventListener('click', async () => {
+    if (!confirm("Lancer la mise à jour de la base de données ? Cette opération ajoute les colonnes/tables manquantes, sans perte de données existantes.")) return;
+    const btn = document.getElementById('maint-db-migrate-btn');
+    const msgEl = document.getElementById('maint-db-migrate-msg');
+    btn.disabled = true;
+    btn.textContent = 'Mise à jour en cours...';
+    msgEl.className = 'msg';
+    msgEl.textContent = '';
+
+    try {
+        const res = await fetch('../api/maintenance.php?action=migrate-db', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            msgEl.className = 'msg success';
+            msgEl.textContent = data.applied.length ? `Base de données mise à jour : ${data.applied.join(' ; ')}.` : 'Aucune mise à jour en attente.';
+            await loadMaintenance();
+        } else {
+            msgEl.className = 'msg error';
+            msgEl.textContent = data.message || 'Erreur lors de la mise à jour de la base de données';
+        }
+    } catch (err) {
+        msgEl.className = 'msg error';
+        msgEl.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Lancer la mise à jour de la base de données';
+    }
+});
 
 // ---------- Rendu : version, sauvegardes ----------
 qaWatchEffect(() => {
