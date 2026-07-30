@@ -42,12 +42,11 @@
     </div>
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
-    <div id="tiles-manage-toggle-row" class="hidden" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:12px;">
-        <span style="color:var(--text-secondary);font-size:0.9rem;">Mode paramétrage</span>
-        <label class="switch">
-            <input type="checkbox" id="tiles-manage-toggle">
-            <span class="switch-slider"></span>
-        </label>
+    <div id="tiles-manage-toggle-row" class="hidden" style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button type="button" id="tiles-manage-toggle-btn" class="edit-tiles-toggle" aria-pressed="false">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span id="tiles-manage-toggle-label">Modifier les tuiles</span>
+        </button>
     </div>
 
     <div class="grid" id="tiles-grid"></div>
@@ -141,6 +140,9 @@ function bind() {
     document.getElementById('profile-licence').textContent = vm.profile.numero_licence || '—';
 
     document.getElementById('tiles-manage-toggle-row').classList.toggle('hidden', !canManageTiles());
+    const toggleBtn = document.getElementById('tiles-manage-toggle-btn');
+    toggleBtn.setAttribute('aria-pressed', String(vm.manageMode));
+    document.getElementById('tiles-manage-toggle-label').textContent = vm.manageMode ? 'Terminer la modification' : 'Modifier les tuiles';
 
     renderStats();
 
@@ -352,8 +354,8 @@ async function deleteTile(id) {
     } catch (err) { /* pas bloquant */ }
 }
 
-document.getElementById('tiles-manage-toggle').addEventListener('change', async (e) => {
-    vm.manageMode = e.target.checked;
+document.getElementById('tiles-manage-toggle-btn').addEventListener('click', async () => {
+    vm.manageMode = !vm.manageMode;
     if (vm.manageMode && !vm.adminTiles) await loadAdminTiles();
 });
 
