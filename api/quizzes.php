@@ -1,12 +1,16 @@
 <?php
-require_once __DIR__ . '/../includes/require_admin.php';
+require_once __DIR__ . '/../includes/session-config.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
-require_admin();
 header('Content-Type: application/json');
 
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+$qaSection = $action === 'attempts' ? 'attempts' : 'quizzes';
+$qaMinLevel = in_array($action, ['save', 'delete'], true) ? 'manage' : 'read';
+require_permission($qaSection, $qaMinLevel);
 
 function qa_quiz_pool_where($type) {
     // Un questionnaire d'entraînement ne pioche jamais parmi les questions

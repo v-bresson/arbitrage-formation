@@ -65,22 +65,59 @@ function qa_schema_migrations() {
                 ['table' => 'users', 'column' => 'club', 'definition' => 'VARCHAR(191) NULL'],
             ],
         ],
+        [
+            'id' => 'roles_permissions_2026_07',
+            'description' => "Rôles étendus (Candidat/Formateur/Membre CRA/Super-Admin) et permissions personnalisées par utilisateur",
+            'tables' => ['user_permissions'],
+            'create_sql' => [
+                "CREATE TABLE IF NOT EXISTS user_permissions (
+                    user_id INT UNSIGNED NOT NULL,
+                    section VARCHAR(50) NOT NULL,
+                    level VARCHAR(20) NOT NULL,
+                    PRIMARY KEY (user_id, section),
+                    CONSTRAINT fk_user_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            ],
+            // Idempotentes : sans effet sur une base qui n'a plus d'anciens rôles.
+            'statements' => [
+                "UPDATE users SET role='super_admin' WHERE role='admin'",
+                "UPDATE users SET role='candidat' WHERE role='user'",
+            ],
+            // La table user_permissions seule ne suffit pas à dire que cette
+            // migration est "déjà là" (elle est créée sans condition pour
+            // toute installation, neuve ou pas) : il faut aussi qu'aucun
+            // compte n'ait encore un ancien rôle ('admin'/'user') à renommer.
+            'legacy_check' => "SELECT COUNT(*) c FROM users WHERE role IN ('admin', 'user')",
+        ],
     ];
 }
 
-function qa_migration_columns_present($pdo, $migration) {
-    foreach ($migration['columns'] as $col) {
+function qa_table_exists($pdo, $table) {
+    $stmt = $pdo->prepare('SELECT COUNT(*) c FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+    $stmt->execute([$table]);
+    return (int)$stmt->fetch()['c'] > 0;
+}
+
+function qa_migration_requirements_met($pdo, $migration) {
+    foreach ($migration['columns'] ?? [] as $col) {
         if (!qa_column_exists($pdo, $col['table'], $col['column'])) return false;
+    }
+    foreach ($migration['tables'] ?? [] as $table) {
+        if (!qa_table_exists($pdo, $table)) return false;
+    }
+    if (isset($migration['legacy_check'])) {
+        $count = (int)$pdo->query($migration['legacy_check'])->fetch()['c'];
+        if ($count > 0) return false;
     }
     return true;
 }
 
-// Marque comme "appliquées" les migrations dont les colonnes sont déjà
-// toutes présentes (installation neuve, ou migration déjà appliquée
+// Marque comme "appliquées" les migrations dont les colonnes/tables sont
+// déjà toutes présentes (installation neuve, ou migration déjà appliquée
 // manuellement) — n'altère jamais le schéma lui-même.
 function qa_sync_schema_migrations($pdo) {
     foreach (qa_schema_migrations() as $migration) {
-        if (qa_migration_columns_present($pdo, $migration)) {
+        if (qa_migration_requirements_met($pdo, $migration)) {
             $stmt = $pdo->prepare('INSERT IGNORE INTO schema_migrations (id) VALUES (?)');
             $stmt->execute([$migration['id']]);
         }
@@ -99,13 +136,20 @@ function qa_pending_migrations($pdo) {
     return $pending;
 }
 
-// Applique réellement une migration (ALTER TABLE) — appelé uniquement à
-// la demande explicite de l'admin (api/maintenance.php, action db-migrate).
+// Applique réellement une migration (tables, colonnes, instructions SQL) —
+// appelé uniquement à la demande explicite de l'admin
+// (api/maintenance.php, action db-migrate).
 function qa_apply_migration($pdo, $migration) {
-    foreach ($migration['columns'] as $col) {
+    foreach ($migration['create_sql'] ?? [] as $sql) {
+        $pdo->exec($sql);
+    }
+    foreach ($migration['columns'] ?? [] as $col) {
         if (!qa_column_exists($pdo, $col['table'], $col['column'])) {
             $pdo->exec("ALTER TABLE `{$col['table']}` ADD COLUMN `{$col['column']}` {$col['definition']}");
         }
+    }
+    foreach ($migration['statements'] ?? [] as $sql) {
+        $pdo->exec($sql);
     }
     $stmt = $pdo->prepare('INSERT IGNORE INTO schema_migrations (id) VALUES (?)');
     $stmt->execute([$migration['id']]);
@@ -223,16 +267,16 @@ function get_db() {
 
     // ---------------------------------------------------------------
     // Utilisateurs : compte unique pour toute l'application (connexion,
-    // dashboard, tuiles). Le rôle 'admin' donne accès à l'espace
-    // d'administration ; 'user' n'a accès qu'au dashboard et aux tuiles
-    // non réservées. Le premier compte créé (écran de configuration
-    // initiale) est toujours admin.
+    // dashboard, tuiles). Rôle parmi candidat/formateur/membre_cra/
+    // super_admin (voir includes/permissions.php pour les droits par
+    // rôle). Le premier compte créé (écran de configuration initiale)
+    // est toujours super_admin.
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(100) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        role VARCHAR(20) NOT NULL DEFAULT 'candidat',
         actif TINYINT(1) NOT NULL DEFAULT 1,
         nom VARCHAR(191) NULL,
         prenom VARCHAR(191) NULL,
@@ -241,6 +285,20 @@ function get_db() {
         telephone VARCHAR(30) NULL,
         club VARCHAR(191) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // ---------------------------------------------------------------
+    // Permissions individuelles : surcharge, section par section, du
+    // groupe de droits par défaut du rôle d'un utilisateur précis (voir
+    // includes/permissions.php). Une ligne absente = utilise le défaut
+    // du rôle ; super_admin n'a pas de ligne ici (accès total fixe).
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_permissions (
+        user_id INT UNSIGNED NOT NULL,
+        section VARCHAR(50) NOT NULL,
+        level VARCHAR(20) NOT NULL,
+        PRIMARY KEY (user_id, section),
+        CONSTRAINT fk_user_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------

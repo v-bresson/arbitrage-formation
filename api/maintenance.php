@@ -1,14 +1,18 @@
 <?php
-require_once __DIR__ . '/../includes/require_admin.php';
+require_once __DIR__ . '/../includes/session-config.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/maintenance.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
-require_admin();
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 $actingUsername = $_SESSION['username'] ?? 'inconnu';
+
+$qaReadOnlyActions = ['state', 'github-check', 'log'];
+require_permission('maintenance', in_array($action, $qaReadOnlyActions, true) ? 'read' : 'manage');
 
 if ($method === 'GET' && $action === 'state') {
     $pdo = get_db();

@@ -36,8 +36,58 @@ const QUESTION_TYPE_LABELS = {
     ouverte: 'Ouverte',
 };
 
+// ---------- Permissions ----------
+// Rôle courant + permissions effectives (groupe de droits du rôle +
+// éventuelles surcharges individuelles, calculées côté serveur — voir
+// includes/permissions.php). super_admin a toujours tout.
+const TAB_SECTIONS = {
+    questions: 'questions',
+    quizzes: 'quizzes',
+    attempts: 'attempts',
+    users: 'users',
+    tiles: 'tiles',
+    maintenance: 'maintenance',
+};
+
+function canRead(section) {
+    return vm.role === 'super_admin' || (vm.permissions[section] && vm.permissions[section] !== 'none');
+}
+function canManage(section) {
+    return vm.role === 'super_admin' || vm.permissions[section] === 'manage';
+}
+
+function applyPermissionGating() {
+    document.querySelectorAll('.sidebar-link[data-tab]').forEach(btn => {
+        const section = TAB_SECTIONS[btn.dataset.tab];
+        btn.classList.toggle('hidden', !!section && !canRead(section));
+    });
+    document.querySelectorAll('.sidebar-group').forEach(group => {
+        const hasVisibleChild = !!group.querySelector('.sidebar-link:not(.hidden)');
+        group.classList.toggle('hidden', !hasVisibleChild);
+    });
+
+    document.getElementById('overview-users-card').classList.toggle('hidden', !canRead('users'));
+    document.getElementById('overview-app-panel').classList.toggle('hidden', !canRead('maintenance'));
+
+    document.getElementById('new-question-btn').classList.toggle('hidden', !canManage('questions'));
+    document.getElementById('import-btn').classList.toggle('hidden', !canManage('questions'));
+    document.getElementById('new-quiz-btn').classList.toggle('hidden', !canManage('quizzes'));
+    document.getElementById('new-tile-btn').classList.toggle('hidden', !canManage('tiles'));
+    document.getElementById('new-user-btn').classList.toggle('hidden', !canManage('users'));
+
+    // Si l'onglet actif n'est plus accessible (permission retirée entre
+    // deux sessions), retombe sur le premier onglet visible.
+    const activeTab = document.querySelector('.sidebar-link.active');
+    if (activeTab && activeTab.classList.contains('hidden')) {
+        const firstVisible = document.querySelector('.sidebar-link[data-tab]:not(.hidden)');
+        if (firstVisible) selectSidebarTab(firstVisible.dataset.tab);
+    }
+}
+
 // ---------- ViewModel ----------
 const vm = qaReactive({
+    role: null,
+    permissions: {},
     questions: [],
     categoryFilter: '',
     quizzes: [],
@@ -77,12 +127,15 @@ async function checkSession() {
             window.location.href = '../index.php';
             return;
         }
-        if (data.role !== 'admin') {
+        if (!data.has_admin_access) {
             showScreen('denied');
             return;
         }
+        vm.role = data.role;
+        vm.permissions = data.permissions || {};
         document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
         showScreen('admin');
+        applyPermissionGating();
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
         initAdmin();
     } catch (err) {
@@ -141,11 +194,11 @@ qaWatchEffect(() => {
 });
 
 function initAdmin() {
-    loadQuestions();
-    loadQuizzes();
-    loadAttempts();
-    loadUsers();
-    loadMaintenance();
+    if (canRead('questions')) loadQuestions();
+    if (canRead('quizzes')) loadQuizzes();
+    if (canRead('attempts')) loadAttempts();
+    if (canRead('users')) loadUsers();
+    if (canRead('maintenance')) loadMaintenance();
 }
 
 // ================= QUESTIONS =================
@@ -200,8 +253,7 @@ qaWatchEffect(() => {
             <td>${q.examen_uniquement ? '<span class="pill warn">Examen</span>' : '—'}</td>
             <td>${q.actif ? '<span class="pill ok">Active</span>' : '<span class="pill">Inactive</span>'}</td>
             <td class="row-actions">
-                <button type="button" class="secondary edit-q-btn" data-id="${q.id}">Modifier</button>
-                <button type="button" class="danger delete-q-btn" data-id="${q.id}">Supprimer</button>
+                ${canManage('questions') ? `<button type="button" class="secondary edit-q-btn" data-id="${q.id}">Modifier</button><button type="button" class="danger delete-q-btn" data-id="${q.id}">Supprimer</button>` : ''}
             </td>
         </tr>
     `).join('');
@@ -441,10 +493,11 @@ qaWatchEffect(() => {
                 ${q.ouverture_debut || q.ouverture_fin ? `<span class="pill">Ouvert ${q.ouverture_debut ? 'du ' + q.ouverture_debut.slice(0, 16).replace('T', ' ') : ''}${q.ouverture_fin ? ' au ' + q.ouverture_fin.slice(0, 16).replace('T', ' ') : ''}</span>` : ''}
                 <span class="pill ${q.actif ? 'ok' : ''}">${q.actif ? 'Actif' : 'Inactif'}</span>
             </div>
+            ${canManage('quizzes') ? `
             <div class="row-actions" style="margin-top:8px;">
                 <button type="button" class="secondary edit-qz-btn" data-id="${q.id}">Modifier</button>
                 <button type="button" class="danger delete-qz-btn" data-id="${q.id}">Supprimer</button>
-            </div>
+            </div>` : ''}
         </div>
     `).join('');
 
@@ -711,10 +764,11 @@ qaWatchEffect(() => {
                 ${t.admin_uniquement ? '<span class="pill warn">Réservée admin</span>' : ''}
                 <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
             </div>
+            ${canManage('tiles') ? `
             <div class="row-actions" style="margin-top:8px;">
                 <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
                 <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
-            </div>
+            </div>` : ''}
         </div>
     `).join('');
 
@@ -821,10 +875,18 @@ async function deleteTile(id) {
 }
 
 // ================= UTILISATEURS =================
+let roleDefaults = {};
+let roleLabels = {};
+let permissionSections = {};
+
 async function loadUsers() {
     try {
         const res = await fetch('../api/users.php?action=list');
-        vm.users = await res.json();
+        const data = await res.json();
+        vm.users = data.users;
+        roleDefaults = data.role_defaults || {};
+        roleLabels = data.role_labels || {};
+        permissionSections = data.sections || {};
         vm.msg.users = vm.users.length ? '' : 'Aucun utilisateur.';
     } catch (err) {
         vm.msg.users = 'Erreur de chargement des utilisateurs';
@@ -844,12 +906,11 @@ qaWatchEffect(() => {
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
             <td>${escapeHtml(u.club || '—')}</td>
-            <td><span class="pill ${u.role === 'admin' ? 'warn' : ''}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
+            <td><span class="pill ${u.role === 'super_admin' ? 'warn' : ''}">${escapeHtml(u.role_label || u.role)}</span></td>
             <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
             <td>${escapeHtml(u.created_at)}</td>
             <td class="row-actions">
-                <button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button>
-                <button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>
+                ${canManage('users') ? `<button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button><button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>` : ''}
             </td>
         </tr>
     `).join('');
@@ -872,12 +933,13 @@ function openUserModal(id) {
     document.getElementById('user-telephone').value = '';
     document.getElementById('user-numero-licence').value = '';
     document.getElementById('user-club').value = '';
-    document.getElementById('user-role').value = 'user';
+    document.getElementById('user-role').value = 'candidat';
     document.getElementById('user-actif').checked = true;
     document.getElementById('user-password').required = true;
     document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
 
+    let overrides = {};
     if (id) {
         const u = vm.users.find(x => String(x.id) === String(id));
         if (u) {
@@ -894,10 +956,47 @@ function openUserModal(id) {
             document.getElementById('user-actif').checked = u.actif;
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
+            overrides = u.permission_overrides || {};
         }
     }
+    renderUserPermissionsTable(document.getElementById('user-role').value, overrides);
+    updateUserPermissionsVisibility();
     userModal.classList.remove('hidden');
 }
+
+const PERMISSION_LEVEL_LABELS = { none: 'aucun accès', read: 'lecture seule', manage: 'gestion complète' };
+
+function renderUserPermissionsTable(role, overrides) {
+    const tbody = document.getElementById('user-permissions-tbody');
+    const defaults = roleDefaults[role] || {};
+    tbody.innerHTML = Object.keys(permissionSections).map(section => {
+        const label = permissionSections[section];
+        const defaultLevel = defaults[section] || 'none';
+        const value = overrides[section] || '__default__';
+        return `
+        <tr>
+            <td>${escapeHtml(label)}</td>
+            <td>
+                <select class="user-perm-select" data-section="${section}">
+                    <option value="__default__" ${value === '__default__' ? 'selected' : ''}>Par défaut du rôle (${PERMISSION_LEVEL_LABELS[defaultLevel]})</option>
+                    <option value="none" ${value === 'none' ? 'selected' : ''}>Aucun accès</option>
+                    <option value="read" ${value === 'read' ? 'selected' : ''}>Lecture seule</option>
+                    <option value="manage" ${value === 'manage' ? 'selected' : ''}>Gestion complète</option>
+                </select>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function updateUserPermissionsVisibility() {
+    const role = document.getElementById('user-role').value;
+    document.getElementById('user-permissions-field').classList.toggle('hidden', role === 'super_admin');
+}
+
+document.getElementById('user-role').addEventListener('change', () => {
+    renderUserPermissionsTable(document.getElementById('user-role').value, {});
+    updateUserPermissionsVisibility();
+});
 
 document.getElementById('new-user-btn').addEventListener('click', () => openUserModal(null));
 document.getElementById('user-cancel-btn').addEventListener('click', () => userModal.classList.add('hidden'));
@@ -909,6 +1008,11 @@ userForm.addEventListener('submit', async (e) => {
     modalMsg.textContent = '';
     const saveBtn = document.getElementById('user-save-btn');
     saveBtn.disabled = true;
+
+    const permissionOverrides = {};
+    document.querySelectorAll('.user-perm-select').forEach(sel => {
+        if (sel.value !== '__default__') permissionOverrides[sel.dataset.section] = sel.value;
+    });
 
     const payload = {
         id: document.getElementById('user-id').value || null,
@@ -922,6 +1026,7 @@ userForm.addEventListener('submit', async (e) => {
         club: document.getElementById('user-club').value,
         role: document.getElementById('user-role').value,
         actif: document.getElementById('user-actif').checked,
+        permission_overrides: permissionOverrides,
     };
 
     try {
@@ -989,7 +1094,7 @@ async function loadMaintenance() {
 qaWatchEffect(() => {
     const pending = vm.maint.pendingMigrations;
     const banner = document.getElementById('overview-db-migration-banner');
-    banner.classList.toggle('hidden', !pending.length);
+    banner.classList.toggle('hidden', !pending.length || !canManage('maintenance'));
     if (pending.length) {
         document.getElementById('overview-db-migration-text').textContent = pending.map(m => m.description).join(' · ');
     }

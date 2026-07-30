@@ -6,7 +6,8 @@
 // maintenance du projet gestion-sportive.
 //
 // Sécurité :
-//  - Toute action passe par require_admin() (voir api/maintenance.php).
+//  - Toute action passe par require_permission('maintenance', ...) (voir
+//    api/maintenance.php et includes/permissions.php).
 //  - Le contenu d'un zip uploadé n'est jamais exécuté : uniquement
 //    extrait puis copié fichier par fichier après vérification de la
 //    signature binaire et de la présence de fichiers marqueurs

@@ -24,12 +24,29 @@ Sur `dashboard.php`, `quiz.php` et `admin/index.php`, le bandeau (logo + actions
       - **Examen** : peut piocher dans toute la banque de questions, avec réglages spécifiques : **fenêtre d'ouverture** (date/heure de début et de fin), **durée chronométrée** (minuteur, auto-soumission à expiration), **nombre de tentatives maximum** par candidat, et **affichage ou masquage du score** au candidat à la fin.
       - Chaque questionnaire peut piocher soit un nombre global de questions dans une catégorie unique (ou toutes), soit une **répartition par thématique** (ex. 3 questions "Sécurité" + 2 "Scoring" + 5 "Règlement").
     - *Résultats* : archive de **toutes** les tentatives (entraînement et examen), avec statut (en cours / terminée / expirée), conservée même si le questionnaire ou les questions sont ensuite modifiés ou supprimés.
-  - **Comptes utilisateurs** : création/modification des comptes (identifiant, mot de passe, rôle admin/utilisateur, actif/inactif), avec fiche profil optionnelle (prénom, nom, email, téléphone, n° de licence, club). Il doit toujours rester au moins un administrateur actif (garde-fou sur la suppression/rétrogradation).
+  - **Comptes utilisateurs** : création/modification des comptes (identifiant, mot de passe, rôle, actif/inactif), avec fiche profil optionnelle (prénom, nom, email, téléphone, n° de licence, club). Il doit toujours rester au moins un Super-Admin actif (garde-fou sur la suppression/rétrogradation).
   - **Administration**
     - *Tuiles* : gestion du contenu du dashboard (nom, description, icône, ordre d'affichage, réservée ou non aux admins). Une tuile de type "Candidats arbitres" pointe vers le module intégré ; une tuile de type "Lien" pointe vers une URL (utile pour brancher plus tard d'autres modules ArcheryOps).
     - *Mise à jour système* : mise à jour de l'application par upload d'un fichier `.zip`, ou directement depuis la dernière release d'un dépôt GitHub configuré. Une sauvegarde complète du code est créée automatiquement avant toute mise à jour ou restauration ; historique consultable et restaurable, avec un journal détaillé de chaque opération (voir plus bas).
 
 Le nom d'utilisateur connecté sert directement d'identifiant candidat pour les questionnaires (plus besoin de ressaisir son nom) : il identifie aussi la reprise de tentative et le comptage des tentatives sur les examens.
+
+### Rôles et permissions (`includes/permissions.php`)
+
+Quatre rôles fixes : **Candidat** (dashboard + passage de questionnaire, aucun accès admin), **Formateur**, **Membre CRA** et **Super-Admin**. Chaque section de l'espace admin (Banque de questions, Questionnaires, Résultats, Comptes utilisateurs, Tuiles, Mise à jour système) a un niveau d'accès par rôle — aucun accès / lecture seule / gestion complète :
+
+| Section | Formateur | Membre CRA | Super-Admin |
+|---|---|---|---|
+| Banque de questions | Gestion | Lecture | Gestion |
+| Questionnaires | Gestion | Lecture | Gestion |
+| Résultats | Lecture | Gestion | Gestion |
+| Comptes utilisateurs | — | — | Gestion |
+| Tuiles | — | — | Gestion |
+| Mise à jour système | — | — | Gestion |
+
+Le Candidat n'a aucun accès à ces sections. Depuis la fiche d'un utilisateur (Comptes utilisateurs), un Super-Admin peut **surcharger** individuellement le niveau d'accès d'une section pour une personne précise, sans toucher au groupe de droits de son rôle (table `user_permissions`) — le rôle continue de fournir les valeurs par défaut de toutes les sections non surchargées. Un Super-Admin a toujours accès total, non modifiable. Le menu latéral et les boutons de gestion (ajouter/modifier/supprimer) de l'admin s'adaptent automatiquement aux permissions effectives ; les endpoints API vérifient aussi ces permissions côté serveur (`require_permission()`), indépendamment de l'affichage.
+
+> Les anciens rôles `admin`/`user` (avant l'introduction de ce système) sont traités comme des alias de `super_admin`/`candidat` tant que la migration de base de données correspondante n'a pas été lancée depuis Administration > Mise à jour système — pour ne jamais bloquer l'accès admin d'une installation existante en cours de mise à jour.
 
 > Architecture multi-modules : ce module vit pour l'instant avec sa propre base d'utilisateurs (table `users`) et sa propre session. Le passage à un référentiel d'utilisateurs et une méthode d'authentification centralisés (ArcheryOps Dashboard) est identifié comme un chantier à part entière, à traiter plus tard sans que cela ne bloque le fonctionnement autonome actuel.
 
@@ -82,7 +99,7 @@ includes/db.php                   Connexion MariaDB/MySQL (PDO) + création du s
 includes/db-config.sample.php      Modèle de fichier de config DB (à copier en db-config.php), avec clé GitHub optionnelle
 includes/maintenance.php           Sauvegarde/restauration de code, extraction de zip, intégration GitHub, journal
 includes/require_user.php          Garde d'accès : utilisateur connecté
-includes/require_admin.php         Garde d'accès : rôle admin
+includes/permissions.php           Rôles, permissions par section et surcharges individuelles (require_permission)
 includes/xlsx_reader.php           Lecteur .xlsx minimaliste sans dépendance
 includes/uploads.php               Gestion des images jointes aux questions
 assets/style.css                   Charte graphique (reprise de serveur-home)

@@ -1,11 +1,13 @@
 <?php
-require_once __DIR__ . '/../includes/require_admin.php';
+require_once __DIR__ . '/../includes/session-config.php';
+if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/xlsx_reader.php';
 require_once __DIR__ . '/../includes/uploads.php';
 
-require_admin();
 header('Content-Type: application/json');
+require_permission('questions', 'read');
 
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -95,6 +97,7 @@ if ($action === 'categories') {
 }
 
 if ($action === 'save') {
+    require_permission('questions', 'manage');
     // multipart/form-data : permet de joindre une image en même temps que les champs
     $id = $_POST['id'] ?? null;
     $categorie = trim($_POST['categorie'] ?? '') ?: 'Général';
@@ -158,6 +161,7 @@ if ($action === 'save') {
 }
 
 if ($action === 'delete') {
+    require_permission('questions', 'manage');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($body['id'] ?? 0);
     $stmt = $pdo->prepare('SELECT image FROM questions WHERE id=?');
@@ -170,6 +174,7 @@ if ($action === 'delete') {
 }
 
 if ($action === 'import') {
+    require_permission('questions', 'manage');
     if (empty($_FILES['fichier']) || $_FILES['fichier']['error'] !== UPLOAD_ERR_OK) {
         http_response_code(422);
         echo json_encode(['success' => false, 'message' => 'Aucun fichier reçu']);

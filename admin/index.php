@@ -70,9 +70,9 @@
                     <div class="card"><p style="color:var(--text-secondary);">Questions</p><h2 id="overview-questions-count" style="font-size:2rem;">—</h2></div>
                     <div class="card"><p style="color:var(--text-secondary);">Questionnaires</p><h2 id="overview-quizzes-count" style="font-size:2rem;">—</h2></div>
                     <div class="card"><p style="color:var(--text-secondary);">Tentatives enregistrées</p><h2 id="overview-attempts-count" style="font-size:2rem;">—</h2></div>
-                    <div class="card"><p style="color:var(--text-secondary);">Comptes utilisateurs</p><h2 id="overview-users-count" style="font-size:2rem;">—</h2></div>
+                    <div class="card" id="overview-users-card"><p style="color:var(--text-secondary);">Comptes utilisateurs</p><h2 id="overview-users-count" style="font-size:2rem;">—</h2></div>
                 </div>
-                <div class="panel" style="margin-top:24px;">
+                <div class="panel" style="margin-top:24px;" id="overview-app-panel">
                     <h2 style="margin-top:0;">Application</h2>
                     <div class="meta">
                         <span class="pill" id="overview-version-pill">Version : —</span>
@@ -421,11 +421,25 @@
             <div class="field">
                 <label>Rôle</label>
                 <select id="user-role">
-                    <option value="user">Utilisateur</option>
-                    <option value="admin">Administrateur</option>
+                    <option value="candidat">Candidat</option>
+                    <option value="formateur">Formateur</option>
+                    <option value="membre_cra">Membre CRA</option>
+                    <option value="super_admin">Super-Admin</option>
                 </select>
             </div>
             <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="user-actif" style="width:auto;" checked> Compte actif</label>
+
+            <div id="user-permissions-field">
+                <label>Permissions par section</label>
+                <p class="modal-hint" style="margin-bottom:8px;">Reprend par défaut le groupe de droits du rôle choisi ; modifie une ligne pour l'écarter du groupe uniquement pour cette personne.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Section</th><th>Accès</th></tr></thead>
+                        <tbody id="user-permissions-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button type="button" class="secondary" id="user-cancel-btn">Annuler</button>
                 <button type="submit" id="user-save-btn">Enregistrer</button>

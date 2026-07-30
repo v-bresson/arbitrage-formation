@@ -2,12 +2,15 @@
 require_once __DIR__ . '/../includes/session-config.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 // ===================================================================
 // Authentification unifiée : un seul point d'entrée (login) pour tous
-// les utilisateurs de l'application. Le rôle ('admin' ou 'user') est
-// stocké en session et détermine l'accès à l'espace d'administration
-// et aux tuiles réservées.
+// les utilisateurs de l'application. Le rôle (candidat/formateur/
+// membre_cra/super_admin) est stocké en session ; les permissions
+// effectives (groupe de droits du rôle + surcharges individuelles,
+// voir includes/permissions.php) déterminent l'accès à l'espace
+// d'administration et à ses sections.
 // ===================================================================
 
 header('Content-Type: application/json');
@@ -45,12 +48,12 @@ if ($action === 'setup') {
     }
 
     $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif) VALUES (?, ?, ?, 1)');
-    $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), 'admin']);
+    $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), 'super_admin']);
 
     $_SESSION['user_id'] = (int)$pdo->lastInsertId();
     $_SESSION['username'] = $username;
-    $_SESSION['role'] = 'admin';
-    echo json_encode(['success' => true, 'role' => 'admin']);
+    $_SESSION['role'] = 'super_admin';
+    echo json_encode(['success' => true, 'role' => 'super_admin']);
     exit;
 }
 
@@ -69,10 +72,11 @@ if ($action === 'login') {
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        $role = qa_normalize_role($user['role']);
         $_SESSION['user_id'] = (int)$user['id'];
         $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
-        echo json_encode(['success' => true, 'role' => $user['role']]);
+        $_SESSION['role'] = $role;
+        echo json_encode(['success' => true, 'role' => $role]);
     } else {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Identifiant ou mot de passe incorrect']);
@@ -89,10 +93,14 @@ if ($action === 'logout') {
 
 if ($action === 'check') {
     if (!empty($_SESSION['user_id'])) {
+        $role = $_SESSION['role'] ?? 'candidat';
         echo json_encode([
             'authenticated' => true,
             'username' => $_SESSION['username'],
-            'role' => $_SESSION['role'],
+            'role' => $role,
+            'role_label' => QA_ROLE_LABELS[$role] ?? $role,
+            'permissions' => qa_effective_permissions($pdo, (int)$_SESSION['user_id'], $role),
+            'has_admin_access' => qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role),
         ]);
     } else {
         echo json_encode(['authenticated' => false]);

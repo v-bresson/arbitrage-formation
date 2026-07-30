@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/require_user.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 require_user();
 header('Content-Type: application/json');
@@ -25,7 +26,8 @@ function qa_tile_row_out($row) {
 // Liste des tuiles visibles pour l'utilisateur connecté (dashboard).
 // Les tuiles réservées à l'admin sont filtrées pour les autres rôles.
 if ($action === 'list') {
-    $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+    $role = $_SESSION['role'] ?? 'candidat';
+    $isAdmin = qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role);
     if ($isAdmin) {
         $stmt = $pdo->query('SELECT * FROM tiles WHERE actif=1 ORDER BY ordre, nom');
     } else {
@@ -35,17 +37,17 @@ if ($action === 'list') {
     exit;
 }
 
-// À partir d'ici, gestion des tuiles réservée aux admins.
-require_once __DIR__ . '/../includes/require_admin.php';
-require_admin();
-
+// À partir d'ici, gestion des tuiles (réservée par défaut au Super-Admin,
+// voir includes/permissions.php).
 if ($action === 'list_admin') {
+    require_permission('tiles', 'read');
     $stmt = $pdo->query('SELECT * FROM tiles ORDER BY ordre, nom');
     echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
     exit;
 }
 
 if ($action === 'save') {
+    require_permission('tiles', 'manage');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = $body['id'] ?? null;
     $nom = trim($body['nom'] ?? '');
@@ -84,6 +86,7 @@ if ($action === 'save') {
 }
 
 if ($action === 'delete') {
+    require_permission('tiles', 'manage');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($body['id'] ?? 0);
     $pdo->prepare('DELETE FROM tiles WHERE id=?')->execute([$id]);

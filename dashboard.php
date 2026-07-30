@@ -50,6 +50,7 @@ function escapeHtml(str) {
 const vm = qaReactive({
     username: null,
     role: null,
+    hasAdminAccess: false,
     tiles: null, // null = pas encore chargé
     tilesMsg: '',
 });
@@ -62,7 +63,7 @@ function bind() {
     msg.textContent = vm.tilesMsg;
 
     const tiles = vm.tiles ? [...vm.tiles] : [];
-    if (vm.role === 'admin') {
+    if (vm.hasAdminAccess) {
         tiles.push({ nom: 'Administration', description: 'Questions, questionnaires, comptes utilisateurs et maintenance.', type: 'admin', icone: 'lock' });
     }
 
@@ -100,6 +101,7 @@ async function init() {
 
         vm.username = data.username;
         vm.role = data.role;
+        vm.hasAdminAccess = !!data.has_admin_access;
 
         await loadTiles();
     } catch (err) {
@@ -113,7 +115,7 @@ async function loadTiles() {
         if (res.status === 401) { window.location.href = 'index.php'; return; }
         const tiles = await res.json();
         vm.tiles = tiles;
-        vm.tilesMsg = (tiles.length || vm.role === 'admin') ? '' : 'Aucune tuile configurée pour le moment.';
+        vm.tilesMsg = (tiles.length || vm.hasAdminAccess) ? '' : 'Aucune tuile configurée pour le moment.';
     } catch (err) {
         vm.tilesMsg = 'Erreur de chargement des tuiles';
     }
