@@ -34,6 +34,7 @@ const ICONS = {
     target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
 };
 
 function escapeHtml(str) {
@@ -58,6 +59,7 @@ function bind() {
     if (vm.hasPureAdminAccess) {
         spaces.push({ nom: 'Administration', description: 'Comptes utilisateurs et maintenance système.', href: 'admin/index.php', icone: 'lock' });
     }
+    spaces.push({ nom: 'Mon compte', description: 'Modifier vos informations personnelles et votre mot de passe.', href: 'account.php', icone: 'user' });
 
     document.getElementById('spaces-grid').innerHTML = spaces.map(s => `
         <a class="card" href="${escapeHtml(s.href)}" style="text-decoration:none;align-items:center;text-align:center;">
