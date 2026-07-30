@@ -164,13 +164,13 @@ button.danger { background: var(--danger); }
 
 /* ---------- Header / nav fixes ---------- */
 :root {
-    --header-h: 76px;
+    --header-h: 96px;
     --breadcrumb-h: 38px;
 }
 
 @media (max-width: 600px) {
     :root {
-        --header-h: 100px;
+        --header-h: 112px;
         --breadcrumb-h: 34px;
     }
 }
@@ -198,10 +198,10 @@ body.has-fixed-header { padding-top: 0; }
 }
 
 .site-header .brand { width: auto; flex-shrink: 0; margin-bottom: 0; }
-.site-header .brand img { height: 56px; }
+.site-header .brand img { height: 76px; }
 
 @media (max-width: 600px) {
-    .site-header .brand img { height: 44px; }
+    .site-header .brand img { height: 56px; }
 }
 
 .breadcrumb {
