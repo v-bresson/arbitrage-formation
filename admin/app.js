@@ -780,14 +780,6 @@ qaWatchEffect(() => {
 const userModal = document.getElementById('user-modal-overlay');
 const userForm = document.getElementById('user-form');
 
-function populateFormateurReferentOptions(selectedId) {
-    const select = document.getElementById('user-formateur-referent');
-    const formateurs = vm.users.filter(u => u.role === 'formateur' || u.role === 'membre_cra');
-    select.innerHTML = '<option value="">—</option>' + formateurs.map(f =>
-        `<option value="${f.id}" ${String(f.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`
-    ).join('');
-}
-
 function openUserModal(id) {
     const modalMsg = document.getElementById('user-modal-msg');
     modalMsg.textContent = '';
@@ -801,12 +793,9 @@ function openUserModal(id) {
     document.getElementById('user-club').value = '';
     document.getElementById('user-role').value = 'candidat';
     document.getElementById('user-actif').checked = true;
-    document.getElementById('user-niveau-formation').value = '';
-    document.getElementById('user-option-pratique').value = '';
     document.getElementById('user-password').required = true;
     document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
-    populateFormateurReferentOptions(null);
 
     let overrides = {};
     if (id) {
@@ -823,9 +812,6 @@ function openUserModal(id) {
             document.getElementById('user-club').value = u.club || '';
             document.getElementById('user-role').value = u.role;
             document.getElementById('user-actif').checked = u.actif;
-            document.getElementById('user-niveau-formation').value = u.niveau_formation || '';
-            document.getElementById('user-option-pratique').value = u.option_pratique || '';
-            populateFormateurReferentOptions(u.formateur_referent_id);
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
             overrides = u.permission_overrides || {};
@@ -863,7 +849,6 @@ function renderUserPermissionsTable(role, overrides) {
 function updateUserPermissionsVisibility() {
     const role = document.getElementById('user-role').value;
     document.getElementById('user-permissions-field').classList.toggle('hidden', role === 'super_admin');
-    document.getElementById('user-training-field').classList.toggle('hidden', role !== 'candidat');
 }
 
 document.getElementById('user-role').addEventListener('change', () => {
@@ -899,9 +884,6 @@ userForm.addEventListener('submit', async (e) => {
         club: document.getElementById('user-club').value,
         role: document.getElementById('user-role').value,
         actif: document.getElementById('user-actif').checked,
-        niveau_formation: document.getElementById('user-niveau-formation').value,
-        option_pratique: document.getElementById('user-option-pratique').value,
-        formateur_referent_id: document.getElementById('user-formateur-referent').value || null,
         permission_overrides: permissionOverrides,
     };
 

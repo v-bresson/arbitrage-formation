@@ -2,27 +2,10 @@
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/permissions.php';
 
-require_once __DIR__ . '/../includes/require_user.php';
-
 header('Content-Type: application/json');
 $qaReadOnlyActions = ['list'];
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
-
-// Le suivi de formation des candidats (niveau, option, formateur référent)
-// est ouvert aux formateurs/membres CRA, en plus des admins qui ont la
-// permission "users" — sans leur donner accès à la gestion complète des
-// comptes (rôle, mot de passe, activation).
-$qaTrainingActions = ['list-candidates', 'save-training'];
-if (in_array($action, $qaTrainingActions, true)) {
-    require_user();
-    if (!qa_can_edit_candidate_training($_SESSION['role'] ?? 'candidat')) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => "Vous n'avez pas les droits nécessaires pour cette action"]);
-        exit;
-    }
-} else {
-    require_permission('users', in_array($action, $qaReadOnlyActions, true) ? 'read' : 'manage');
-}
+require_permission('users', in_array($action, $qaReadOnlyActions, true) ? 'read' : 'manage');
 
 $pdo = get_db();
 
@@ -45,9 +28,6 @@ function qa_user_row_out($pdo, $row) {
         'numero_licence' => $row['numero_licence'],
         'telephone' => $row['telephone'],
         'club' => $row['club'],
-        'niveau_formation' => $row['niveau_formation'] ?? null,
-        'option_pratique' => $row['option_pratique'] ?? null,
-        'formateur_referent_id' => isset($row['formateur_referent_id']) && $row['formateur_referent_id'] !== null ? (int)$row['formateur_referent_id'] : null,
         'created_at' => $row['created_at'],
         'permission_overrides' => qa_user_overrides($pdo, $row['id']),
         'effective_permissions' => qa_effective_permissions($pdo, $row['id'], $role),
@@ -89,9 +69,6 @@ if ($action === 'save') {
     $numeroLicence = trim($body['numero_licence'] ?? '') ?: null;
     $telephone = trim($body['telephone'] ?? '') ?: null;
     $club = trim($body['club'] ?? '') ?: null;
-    $niveauFormation = in_array($body['niveau_formation'] ?? '', QA_NIVEAUX_FORMATION, true) ? $body['niveau_formation'] : null;
-    $optionPratique = in_array($body['option_pratique'] ?? '', QA_OPTIONS_PRATIQUE, true) ? $body['option_pratique'] : null;
-    $formateurReferentId = !empty($body['formateur_referent_id']) ? (int)$body['formateur_referent_id'] : null;
 
     if ($username === '' || strlen($username) < 3) {
         http_response_code(422);
@@ -121,15 +98,15 @@ if ($action === 'save') {
     try {
         if ($id) {
             if ($password !== '') {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=? WHERE id=?');
-                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=? WHERE id=?');
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $id]);
             } else {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=? WHERE id=?');
-                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=? WHERE id=?');
+                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $id]);
             }
         } else {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club, niveau_formation, option_pratique, formateur_referent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId]);
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club]);
             $id = $pdo->lastInsertId();
         }
     } catch (PDOException $e) {
@@ -178,57 +155,6 @@ if ($action === 'delete') {
 
     $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$id]);
     echo json_encode(['success' => true]);
-    exit;
-}
-
-// Suivi de formation des candidats : liste + formateurs disponibles pour
-// le champ "formateur référent" (accessible aux formateurs/membres CRA,
-// pas seulement aux comptes ayant la permission "users").
-if ($action === 'list-candidates') {
-    $stmt = $pdo->query("SELECT * FROM users WHERE role = 'candidat' ORDER BY username");
-    $candidates = array_map(fn($row) => qa_user_row_out($pdo, $row), $stmt->fetchAll());
-
-    $stmt = $pdo->query("SELECT id, username FROM users WHERE role IN ('formateur', 'membre_cra') AND actif = 1 ORDER BY username");
-    echo json_encode([
-        'candidates' => $candidates,
-        'formateurs' => $stmt->fetchAll(),
-        'niveaux_formation' => QA_NIVEAUX_FORMATION,
-        'options_pratique' => QA_OPTIONS_PRATIQUE,
-    ]);
-    exit;
-}
-
-if ($action === 'save-training') {
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $id = (int)($body['id'] ?? 0);
-    $niveauFormation = in_array($body['niveau_formation'] ?? '', QA_NIVEAUX_FORMATION, true) ? $body['niveau_formation'] : null;
-    $optionPratique = in_array($body['option_pratique'] ?? '', QA_OPTIONS_PRATIQUE, true) ? $body['option_pratique'] : null;
-    $formateurReferentId = !empty($body['formateur_referent_id']) ? (int)$body['formateur_referent_id'] : null;
-
-    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-    $stmt->execute([$id]);
-    $target = $stmt->fetch();
-    if (!$target || qa_normalize_role($target['role']) !== 'candidat') {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Candidat introuvable']);
-        exit;
-    }
-
-    try {
-        $stmt = $pdo->prepare('UPDATE users SET niveau_formation=?, option_pratique=?, formateur_referent_id=? WHERE id=?');
-        $stmt->execute([$niveauFormation, $optionPratique, $formateurReferentId, $id]);
-    } catch (PDOException $e) {
-        if ((int)($e->errorInfo[1] ?? 0) === 1054) {
-            http_response_code(409);
-            echo json_encode(['success' => false, 'message' => "La base de données n'est pas à jour : un administrateur doit lancer la mise à jour de la base depuis Administration > Mise à jour système."]);
-            exit;
-        }
-        throw $e;
-    }
-
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE id=?');
-    $stmt->execute([$id]);
-    echo json_encode(['success' => true, 'user' => qa_user_row_out($pdo, $stmt->fetch())]);
     exit;
 }
 

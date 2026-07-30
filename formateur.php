@@ -32,21 +32,7 @@
 
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
-    <div class="grid" id="links-grid" style="margin-bottom:24px;"></div>
-
-    <div class="panel" style="padding:0;">
-        <div style="padding:24px 24px 0;">
-            <h2 style="margin-top:0;">Suivi des candidats</h2>
-            <p class="modal-hint">Niveau de formation, option de pratique et formateur référent : modifiables directement ici, sans passer par la gestion complète des comptes.</p>
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Niveau</th><th>Option</th><th>Formateur référent</th><th></th></tr></thead>
-                <tbody id="candidates-tbody"></tbody>
-            </table>
-        </div>
-        <p class="msg" id="candidates-msg" style="padding:0 24px 16px;"></p>
-    </div>
+    <div class="grid" id="links-grid"></div>
 </div>
 
 <footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage</footer>
@@ -67,11 +53,6 @@ const vm = qaReactive({
     username: null,
     permissions: {},
     stats: null,
-    candidates: null,
-    formateurs: [],
-    niveauxFormation: [],
-    optionsPratique: [],
-    candidatesMsg: '',
 });
 
 function canRead(section) {
@@ -103,88 +84,8 @@ function bind() {
             <p>${escapeHtml(l.description)}</p>
         </a>
     `).join('');
-
-    const tbody = document.getElementById('candidates-tbody');
-    document.getElementById('candidates-msg').textContent = vm.candidatesMsg;
-    const candidates = vm.candidates || [];
-    if (!candidates.length) {
-        tbody.innerHTML = '';
-    } else {
-        tbody.innerHTML = candidates.map(c => `
-        <tr data-id="${c.id}">
-            <td>${escapeHtml(c.username)}</td>
-            <td>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || '—')}</td>
-            <td>${escapeHtml(c.club || '—')}</td>
-            <td>
-                <select class="cand-niveau" data-id="${c.id}">
-                    <option value="">—</option>
-                    ${vm.niveauxFormation.map(n => `<option value="${escapeHtml(n)}" ${c.niveau_formation === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
-                </select>
-            </td>
-            <td>
-                <select class="cand-option" data-id="${c.id}">
-                    <option value="">—</option>
-                    ${vm.optionsPratique.map(o => `<option value="${escapeHtml(o)}" ${c.option_pratique === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
-                </select>
-            </td>
-            <td>
-                <select class="cand-referent" data-id="${c.id}">
-                    <option value="">—</option>
-                    ${vm.formateurs.map(f => `<option value="${f.id}" ${String(c.formateur_referent_id) === String(f.id) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`).join('')}
-                </select>
-            </td>
-            <td><span class="msg success cand-saved-msg" style="display:none;">Enregistré</span></td>
-        </tr>`).join('');
-
-        tbody.querySelectorAll('.cand-niveau, .cand-option, .cand-referent').forEach(sel => {
-            sel.addEventListener('change', () => saveCandidateTraining(sel.dataset.id));
-        });
-    }
 }
 qaWatchEffect(bind);
-
-async function saveCandidateTraining(id) {
-    const row = document.querySelector(`#candidates-tbody tr[data-id="${id}"]`);
-    if (!row) return;
-    const payload = {
-        id,
-        niveau_formation: row.querySelector('.cand-niveau').value,
-        option_pratique: row.querySelector('.cand-option').value,
-        formateur_referent_id: row.querySelector('.cand-referent').value || null,
-    };
-    try {
-        const res = await fetch('api/users.php?action=save-training', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        const savedMsg = row.querySelector('.cand-saved-msg');
-        if (data.success) {
-            savedMsg.style.display = '';
-            setTimeout(() => { savedMsg.style.display = 'none'; }, 1500);
-        } else {
-            vm.candidatesMsg = data.message || "Erreur lors de l'enregistrement";
-        }
-    } catch (err) {
-        vm.candidatesMsg = 'Erreur de connexion au serveur';
-    }
-}
-
-async function loadCandidates() {
-    try {
-        const res = await fetch('api/users.php?action=list-candidates');
-        if (!res.ok) { vm.candidatesMsg = "Vous n'avez pas accès au suivi des candidats."; return; }
-        const data = await res.json();
-        vm.candidates = data.candidates || [];
-        vm.formateurs = data.formateurs || [];
-        vm.niveauxFormation = data.niveaux_formation || [];
-        vm.optionsPratique = data.options_pratique || [];
-        vm.candidatesMsg = vm.candidates.length ? '' : 'Aucun candidat pour le moment.';
-    } catch (err) {
-        vm.candidatesMsg = 'Erreur de chargement des candidats';
-    }
-}
 
 async function loadStats() {
     try {
@@ -214,7 +115,6 @@ async function init() {
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
 
         await loadStats();
-        await loadCandidates();
     } catch (err) {
         window.location.href = 'index.php';
     }
