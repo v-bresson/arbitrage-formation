@@ -917,6 +917,7 @@ function populateFormateurReferentOptions(selectedId) {
 function openUserModal(id) {
     const modalMsg = document.getElementById('user-modal-msg');
     modalMsg.textContent = '';
+    document.getElementById('user-password-match-msg').textContent = '';
     userForm.reset();
     document.getElementById('user-id').value = '';
     document.getElementById('user-prenom').value = '';
@@ -976,6 +977,15 @@ document.getElementById('new-user-btn').addEventListener('click', () => openUser
 document.getElementById('user-cancel-btn').addEventListener('click', () => userModal.classList.add('hidden'));
 userModal.addEventListener('click', e => { if (e.target === userModal) userModal.classList.add('hidden'); });
 
+function checkPasswordMatch() {
+    const password = document.getElementById('user-password').value;
+    const passwordConfirm = document.getElementById('user-password-confirm').value;
+    const matchMsg = document.getElementById('user-password-match-msg');
+    matchMsg.textContent = passwordConfirm && password !== passwordConfirm ? 'Les mots de passe ne correspondent pas' : '';
+}
+document.getElementById('user-password').addEventListener('input', checkPasswordMatch);
+document.getElementById('user-password-confirm').addEventListener('input', checkPasswordMatch);
+
 userForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const modalMsg = document.getElementById('user-modal-msg');
@@ -991,7 +1001,7 @@ userForm.addEventListener('submit', async (e) => {
     const password = document.getElementById('user-password').value;
     const passwordConfirm = document.getElementById('user-password-confirm').value;
     if (password !== passwordConfirm) {
-        modalMsg.textContent = 'Les mots de passe ne correspondent pas';
+        checkPasswordMatch();
         return;
     }
 

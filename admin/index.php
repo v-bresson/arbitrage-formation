@@ -401,7 +401,7 @@
             <div class="field"><label>Identifiant</label><input type="text" id="user-username" required minlength="3"></div>
             <div class="field-row">
                 <div class="field"><label id="user-password-label">Mot de passe (8 caractères min.)</label><input type="password" id="user-password" autocomplete="new-password"></div>
-                <div class="field"><label id="user-password-confirm-label">Vérification du mot de passe</label><input type="password" id="user-password-confirm" autocomplete="new-password"></div>
+                <div class="field"><label id="user-password-confirm-label">Vérification du mot de passe</label><input type="password" id="user-password-confirm" autocomplete="new-password"><span class="msg error" id="user-password-match-msg" style="margin-top:4px;"></span></div>
             </div>
             <div class="field-row">
                 <div class="field"><label>Prénom</label><input type="text" id="user-prenom"></div>
