@@ -9,6 +9,20 @@ require_permission('users', in_array($action, $qaReadOnlyActions, true) ? 'read'
 
 $pdo = get_db();
 
+// Ordre de préséance des rôles connus pour déterminer le "rôle principal"
+// (colonne users.role, conservée pour l'affichage et la compatibilité)
+// quand un compte cumule plusieurs rôles cochés. Un rôle personnalisé non
+// listé ici est traité au même rang que "formateur".
+const QA_ROLE_RANK = ['candidat' => 0, 'formateur' => 1, 'membre_cra' => 2, 'super_admin' => 3];
+
+function qa_primary_role($roles) {
+    $best = $roles[0] ?? 'candidat';
+    foreach ($roles as $r) {
+        if ((QA_ROLE_RANK[$r] ?? 1) > (QA_ROLE_RANK[$best] ?? 1)) $best = $r;
+    }
+    return $best;
+}
+
 function qa_user_row_out($pdo, $row) {
     // Normalise un éventuel ancien rôle ('admin'/'user', avant la migration
     // roles_permissions_2026_07) vers son équivalent actuel : le select de
@@ -16,11 +30,14 @@ function qa_user_row_out($pdo, $row) {
     // n'a pas encore été migrée, et le prochain enregistrement de cette
     // fiche corrige la valeur en base au passage.
     $role = qa_normalize_role($row['role']);
+    $roles = qa_user_role_keys($pdo, $row['id'], $role);
     return [
         'id' => (int)$row['id'],
         'username' => $row['username'],
         'role' => $role,
         'role_label' => qa_role_label($pdo, $role),
+        'roles' => $roles,
+        'role_labels' => array_map(fn($r) => qa_role_label($pdo, $r), $roles),
         'actif' => (bool)$row['actif'],
         'nom' => $row['nom'],
         'prenom' => $row['prenom'],
@@ -40,10 +57,14 @@ function qa_user_row_out($pdo, $row) {
 
 function qa_super_admin_count($pdo, $excludeId = null) {
     if ($excludeId) {
-        $stmt = $pdo->prepare("SELECT COUNT(*) c FROM users WHERE role IN ('super_admin', 'admin') AND actif=1 AND id != ?");
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT ur.user_id) c FROM user_roles ur
+            JOIN users u ON u.id = ur.user_id
+            WHERE ur.role_key = 'super_admin' AND u.actif = 1 AND ur.user_id != ?");
         $stmt->execute([$excludeId]);
     } else {
-        $stmt = $pdo->query("SELECT COUNT(*) c FROM users WHERE role IN ('super_admin', 'admin') AND actif=1");
+        $stmt = $pdo->query("SELECT COUNT(DISTINCT ur.user_id) c FROM user_roles ur
+            JOIN users u ON u.id = ur.user_id
+            WHERE ur.role_key = 'super_admin' AND u.actif = 1");
     }
     return (int)$stmt->fetch()['c'];
 }
@@ -69,7 +90,14 @@ if ($action === 'save') {
     $id = $body['id'] ?? null;
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
-    $role = qa_role_exists($pdo, $body['role'] ?? '') ? $body['role'] : 'candidat';
+    $requestedRoles = is_array($body['roles'] ?? null) ? array_values(array_unique($body['roles'])) : [];
+    $roles = array_values(array_filter($requestedRoles, fn($r) => qa_role_exists($pdo, $r)));
+    if (!$roles) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Au moins un rôle doit être sélectionné']);
+        exit;
+    }
+    $role = qa_primary_role($roles);
     $actif = !empty($body['actif']) ? 1 : 0;
     $nom = trim($body['nom'] ?? '') ?: null;
     $prenom = trim($body['prenom'] ?? '') ?: null;
@@ -98,8 +126,9 @@ if ($action === 'save') {
         exit;
     }
 
-    // Empêche de désactiver ou rétrograder le dernier super-admin actif
-    if ($id && ($role !== 'super_admin' || !$actif) && qa_super_admin_count($pdo, $id) === 0) {
+    // Empêche de désactiver ou retirer le rôle Super-Admin du dernier
+    // compte qui le porte encore activement.
+    if ($id && (!in_array('super_admin', $roles, true) || !$actif) && qa_super_admin_count($pdo, $id) === 0) {
         http_response_code(422);
         echo json_encode(['success' => false, 'message' => "Impossible : il doit rester au moins un Super-Admin actif"]);
         exit;
@@ -132,15 +161,29 @@ if ($action === 'save') {
         exit;
     }
 
+    // Remplace les rôles cumulés de ce compte par ceux cochés dans le
+    // formulaire (voir includes/permissions.php pour le calcul des
+    // permissions effectives à partir de plusieurs rôles).
+    $pdo->prepare('DELETE FROM user_roles WHERE user_id = ?')->execute([$id]);
+    $insertRole = $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_key) VALUES (?, ?)');
+    foreach ($roles as $r) {
+        $insertRole->execute([$id, $r]);
+    }
+
     // Remplace les surcharges de permissions de cet utilisateur par celles
-    // fournies (super_admin n'en a jamais besoin, accès total fixe).
-    $pdo->prepare('DELETE FROM user_permissions WHERE user_id = ?')->execute([$id]);
-    if ($role !== 'super_admin') {
-        $insertOverride = $pdo->prepare('INSERT INTO user_permissions (user_id, section, level) VALUES (?, ?, ?)');
-        foreach ($permissionOverrides as $section => $level) {
-            if (!array_key_exists($section, QA_PERMISSION_SECTIONS)) continue;
-            if (!in_array($level, QA_PERMISSION_LEVELS, true)) continue;
-            $insertOverride->execute([$id, $section, $level]);
+    // fournies (super_admin n'en a jamais besoin, accès total fixe). La
+    // fenêtre d'édition n'expose plus ce réglage (retiré pour une
+    // implémentation future) : tant que la clé permission_overrides n'est
+    // pas envoyée, on ne touche pas aux surcharges existantes.
+    if (array_key_exists('permission_overrides', $body)) {
+        $pdo->prepare('DELETE FROM user_permissions WHERE user_id = ?')->execute([$id]);
+        if (!in_array('super_admin', $roles, true)) {
+            $insertOverride = $pdo->prepare('INSERT INTO user_permissions (user_id, section, level) VALUES (?, ?, ?)');
+            foreach ($permissionOverrides as $section => $level) {
+                if (!array_key_exists($section, QA_PERMISSION_SECTIONS)) continue;
+                if (!in_array($level, QA_PERMISSION_LEVELS, true)) continue;
+                $insertOverride->execute([$id, $section, $level]);
+            }
         }
     }
 
@@ -155,10 +198,9 @@ if ($action === 'delete') {
     $id = (int)($body['id'] ?? 0);
 
     if (qa_super_admin_count($pdo, $id) === 0) {
-        $stmt = $pdo->prepare("SELECT role FROM users WHERE id=?");
+        $stmt = $pdo->prepare("SELECT 1 FROM user_roles WHERE user_id = ? AND role_key = 'super_admin'");
         $stmt->execute([$id]);
-        $target = $stmt->fetch();
-        if ($target && qa_normalize_role($target['role']) === 'super_admin') {
+        if ($stmt->fetch()) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => "Impossible : il doit rester au moins un Super-Admin actif"]);
             exit;

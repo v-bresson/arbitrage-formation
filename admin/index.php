@@ -413,13 +413,8 @@
                 <div class="field"><label>Club</label><input type="text" id="user-club"></div>
             </div>
             <div class="field">
-                <label>Rôle</label>
-                <select id="user-role">
-                    <option value="candidat">Candidat</option>
-                    <option value="formateur">Formateur</option>
-                    <option value="membre_cra">Membre CRA</option>
-                    <option value="super_admin">Super-Admin</option>
-                </select>
+                <label>Rôles (un compte peut cumuler plusieurs rôles)</label>
+                <div id="user-roles-checkboxes" style="display:flex;flex-wrap:wrap;gap:14px;"></div>
             </div>
             <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="user-actif" style="width:auto;" checked> Compte actif</label>
 
@@ -456,17 +451,6 @@
                         <label>Date d'entrée en formation</label>
                         <input type="date" id="user-date-entree-formation">
                     </div>
-                </div>
-            </div>
-
-            <div id="user-permissions-field">
-                <label>Permissions par section</label>
-                <p class="modal-hint" style="margin-bottom:8px;">Reprend par défaut le groupe de droits du rôle choisi ; modifie une ligne pour l'écarter du groupe uniquement pour cette personne.</p>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>Section</th><th>Accès</th></tr></thead>
-                        <tbody id="user-permissions-tbody"></tbody>
-                    </table>
                 </div>
             </div>
 

@@ -101,13 +101,34 @@ function qa_user_overrides($pdo, $userId) {
     return $out;
 }
 
-// Fusionne le groupe de droits du rôle avec les éventuelles surcharges
-// individuelles de cet utilisateur (super_admin : toujours tout, pas de
-// surcharge possible).
+// Rôles cumulés réellement assignés à ce compte (table user_roles) — un
+// compte peut porter plusieurs rôles à la fois (ex. Candidat + Formateur).
+// $role sert uniquement de repli si, par accident, le compte n'a encore
+// aucune ligne (ne devrait pas arriver : includes/db.php comble ce cas à
+// chaque requête).
+function qa_user_role_keys($pdo, $userId, $role = null) {
+    $stmt = $pdo->prepare('SELECT role_key FROM user_roles WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $roles = array_column($stmt->fetchAll(), 'role_key');
+    return $roles ?: [qa_normalize_role($role)];
+}
+
+// Fusionne, section par section, le niveau le plus élevé parmi tous les
+// rôles cumulés de ce compte, puis applique les éventuelles surcharges
+// individuelles (super_admin : toujours tout, pas de surcharge possible).
 function qa_effective_permissions($pdo, $userId, $role) {
-    $role = qa_normalize_role($role);
-    if ($role === 'super_admin') return qa_role_default_permissions($pdo, 'super_admin');
-    $perms = qa_role_default_permissions($pdo, $role);
+    $roles = qa_user_role_keys($pdo, $userId, $role);
+    if (in_array('super_admin', $roles, true)) {
+        return qa_role_default_permissions($pdo, 'super_admin');
+    }
+    $perms = array_fill_keys(array_keys(QA_PERMISSION_SECTIONS), 'none');
+    foreach ($roles as $r) {
+        foreach (qa_role_default_permissions($pdo, $r) as $section => $level) {
+            if (qa_permission_level_rank($level) > qa_permission_level_rank($perms[$section])) {
+                $perms[$section] = $level;
+            }
+        }
+    }
     foreach (qa_user_overrides($pdo, $userId) as $section => $level) {
         if (isset($perms[$section])) $perms[$section] = $level;
     }
@@ -120,7 +141,7 @@ function qa_permission_level_rank($level) {
 }
 
 function qa_has_permission($pdo, $userId, $role, $section, $minLevel) {
-    if (qa_normalize_role($role) === 'super_admin') return true;
+    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return true;
     $perms = qa_effective_permissions($pdo, $userId, $role);
     $have = $perms[$section] ?? 'none';
     return qa_permission_level_rank($have) >= qa_permission_level_rank($minLevel);
@@ -130,7 +151,7 @@ function qa_has_permission($pdo, $userId, $role, $section, $minLevel) {
 // voir la tuile Administration sur le dashboard et pouvoir ouvrir
 // admin/index.php), même sans être super_admin.
 function qa_has_any_admin_access($pdo, $userId, $role) {
-    if (qa_normalize_role($role) === 'super_admin') return true;
+    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return true;
     foreach (qa_effective_permissions($pdo, $userId, $role) as $level) {
         if ($level !== 'none') return true;
     }
@@ -141,8 +162,7 @@ function qa_has_any_admin_access($pdo, $userId, $role) {
 // de suivi des candidats (questions/questionnaires/résultats), sans être
 // super_admin (qui a sa propre tuile « Administration », superset).
 function qa_has_formateur_access($pdo, $userId, $role) {
-    $role = qa_normalize_role($role);
-    if ($role === 'super_admin') return false;
+    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return false;
     $perms = qa_effective_permissions($pdo, $userId, $role);
     foreach (['questions', 'quizzes', 'attempts'] as $section) {
         if (($perms[$section] ?? 'none') !== 'none') return true;
@@ -153,13 +173,20 @@ function qa_has_formateur_access($pdo, $userId, $role) {
 // Tuile « Administration » sur l'accueil : gestion des comptes ou
 // maintenance système (super_admin toujours inclus).
 function qa_has_pure_admin_access($pdo, $userId, $role) {
-    $role = qa_normalize_role($role);
-    if ($role === 'super_admin') return true;
+    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return true;
     $perms = qa_effective_permissions($pdo, $userId, $role);
     foreach (['users', 'maintenance'] as $section) {
         if (($perms[$section] ?? 'none') !== 'none') return true;
     }
     return false;
+}
+
+// Vrai si ce compte porte le rôle Formateur (utilisé pour la page Espace
+// candidat : un compte Formateur y voit la recherche de ses candidats
+// assignés à la place de son propre contenu candidat, même s'il est aussi
+// candidat — choix exclusif).
+function qa_has_formateur_role($pdo, $userId, $role) {
+    return in_array('formateur', qa_user_role_keys($pdo, $userId, $role), true);
 }
 
 // Garde d'accès pour les endpoints API admin, section par section — à la

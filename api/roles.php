@@ -127,7 +127,7 @@ if ($action === 'delete') {
         echo json_encode(['success' => false, 'message' => 'Ce rôle est un rôle système et ne peut pas être supprimé']);
         exit;
     }
-    $stmt = $pdo->prepare('SELECT COUNT(*) c FROM users WHERE role = ?');
+    $stmt = $pdo->prepare('SELECT COUNT(*) c FROM user_roles WHERE role_key = ?');
     $stmt->execute([$roleKey]);
     if ((int)$stmt->fetch()['c'] > 0) {
         http_response_code(422);

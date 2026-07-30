@@ -760,11 +760,21 @@ let roleLabels = {};
 let permissionSections = {};
 let roleList = [];
 
-function populateUserRoleOptions(selectedRole) {
-    const select = document.getElementById('user-role');
+function populateUserRoleCheckboxes(selectedRoles) {
+    const container = document.getElementById('user-roles-checkboxes');
     if (!roleList.length) return;
-    select.innerHTML = roleList.map(r => `<option value="${r.role_key}">${escapeHtml(r.label)}</option>`).join('');
-    if (selectedRole) select.value = selectedRole;
+    const selected = selectedRoles || ['candidat'];
+    container.innerHTML = roleList.map(r => `
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+            <input type="checkbox" class="user-role-checkbox" value="${escapeHtml(r.role_key)}" style="width:auto;" ${selected.includes(r.role_key) ? 'checked' : ''}>
+            ${escapeHtml(r.label)}
+        </label>
+    `).join('');
+    container.querySelectorAll('.user-role-checkbox').forEach(cb => cb.addEventListener('change', updateTrainingFieldVisibility));
+}
+
+function getSelectedUserRoles() {
+    return [...document.querySelectorAll('.user-role-checkbox:checked')].map(cb => cb.value);
 }
 
 async function loadUsers() {
@@ -776,7 +786,6 @@ async function loadUsers() {
         roleLabels = data.role_labels || {};
         permissionSections = data.sections || {};
         roleList = data.roles || [];
-        populateUserRoleOptions(document.getElementById('user-role').value);
         vm.msg.users = vm.users.length ? '' : 'Aucun utilisateur.';
     } catch (err) {
         vm.msg.users = 'Erreur de chargement des utilisateurs';
@@ -796,7 +805,7 @@ function renderUsersTable(tbodyId, users, emptyMsg) {
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
             <td>${escapeHtml(u.club || '—')}</td>
-            <td><span class="pill ${u.role === 'super_admin' ? 'warn' : ''}">${escapeHtml(u.role_label || u.role)}</span></td>
+            <td>${(u.roles || [u.role]).map((r, i) => `<span class="pill ${r === 'super_admin' ? 'warn' : ''}">${escapeHtml((u.role_labels || [])[i] || r)}</span>`).join(' ')}</td>
             <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
             <td>${escapeHtml(u.created_at)}</td>
             <td class="row-actions">
@@ -818,7 +827,7 @@ function renderCandidatsTable(users, emptyMsg) {
         tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">${escapeHtml(emptyMsg)}</td></tr>`;
         return;
     }
-    const formateurs = vm.users.filter(u => u.role === 'formateur' || u.role === 'membre_cra');
+    const formateurs = vm.users.filter(u => (u.roles || []).includes('formateur') || (u.roles || []).includes('membre_cra'));
     const canEdit = canManage('users');
 
     tbody.innerHTML = users.map(u => `
@@ -865,13 +874,12 @@ async function quickSaveCandidat(id, changes) {
         telephone: u.telephone,
         numero_licence: u.numero_licence,
         club: u.club,
-        role: u.role,
+        roles: u.roles || [u.role],
         actif: u.actif,
         niveau_formation: u.niveau_formation,
         option_pratique: u.option_pratique,
         formateur_referent_id: u.formateur_referent_id,
         date_entree_formation: u.date_entree_formation,
-        permission_overrides: u.permission_overrides || {},
         ...changes,
     };
     try {
@@ -890,8 +898,8 @@ async function quickSaveCandidat(id, changes) {
 
 qaWatchEffect(() => {
     renderUsersTable('users-tbody', vm.users, vm.msg.users || 'Aucun utilisateur.');
-    renderCandidatsTable(vm.users.filter(u => u.role === 'candidat'), 'Aucun candidat.');
-    renderUsersTable('formateurs-tbody', vm.users.filter(u => u.role === 'formateur'), 'Aucun formateur.');
+    renderCandidatsTable(vm.users.filter(u => (u.roles || []).includes('candidat')), 'Aucun candidat.');
+    renderUsersTable('formateurs-tbody', vm.users.filter(u => (u.roles || []).includes('formateur')), 'Aucun formateur.');
     document.getElementById('candidats-msg').textContent = vm.msg.candidats;
 });
 
@@ -900,7 +908,7 @@ const userForm = document.getElementById('user-form');
 
 function populateFormateurReferentOptions(selectedId) {
     const select = document.getElementById('user-formateur-referent');
-    const formateurs = vm.users.filter(u => u.role === 'formateur' || u.role === 'membre_cra');
+    const formateurs = vm.users.filter(u => (u.roles || []).includes('formateur') || (u.roles || []).includes('membre_cra'));
     select.innerHTML = '<option value="">—</option>' + formateurs.map(f =>
         `<option value="${f.id}" ${String(f.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`
     ).join('');
@@ -917,7 +925,7 @@ function openUserModal(id) {
     document.getElementById('user-telephone').value = '';
     document.getElementById('user-numero-licence').value = '';
     document.getElementById('user-club').value = '';
-    document.getElementById('user-role').value = 'candidat';
+    populateUserRoleCheckboxes(['candidat']);
     document.getElementById('user-actif').checked = true;
     document.getElementById('user-niveau-formation').value = '';
     document.getElementById('user-option-pratique').value = '';
@@ -927,7 +935,6 @@ function openUserModal(id) {
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
     populateFormateurReferentOptions(null);
 
-    let overrides = {};
     if (id) {
         const u = vm.users.find(x => String(x.id) === String(id));
         if (u) {
@@ -940,7 +947,7 @@ function openUserModal(id) {
             document.getElementById('user-telephone').value = u.telephone || '';
             document.getElementById('user-numero-licence').value = u.numero_licence || '';
             document.getElementById('user-club').value = u.club || '';
-            document.getElementById('user-role').value = u.role;
+            populateUserRoleCheckboxes(u.roles || [u.role]);
             document.getElementById('user-actif').checked = u.actif;
             document.getElementById('user-niveau-formation').value = u.niveau_formation || '';
             document.getElementById('user-option-pratique').value = u.option_pratique || '';
@@ -948,48 +955,20 @@ function openUserModal(id) {
             populateFormateurReferentOptions(u.formateur_referent_id);
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
-            overrides = u.permission_overrides || {};
         }
     }
-    renderUserPermissionsTable(document.getElementById('user-role').value, overrides);
-    updateUserPermissionsVisibility();
+    updateTrainingFieldVisibility();
     userModal.classList.remove('hidden');
 }
 
-const PERMISSION_LEVEL_LABELS = { none: 'aucun accès', read: 'lecture seule', manage: 'gestion complète' };
-
-function renderUserPermissionsTable(role, overrides) {
-    const tbody = document.getElementById('user-permissions-tbody');
-    const defaults = roleDefaults[role] || {};
-    tbody.innerHTML = Object.keys(permissionSections).map(section => {
-        const label = permissionSections[section];
-        const defaultLevel = defaults[section] || 'none';
-        const value = overrides[section] || '__default__';
-        return `
-        <tr>
-            <td>${escapeHtml(label)}</td>
-            <td>
-                <select class="user-perm-select" data-section="${section}">
-                    <option value="__default__" ${value === '__default__' ? 'selected' : ''}>Par défaut du rôle (${PERMISSION_LEVEL_LABELS[defaultLevel]})</option>
-                    <option value="none" ${value === 'none' ? 'selected' : ''}>Aucun accès</option>
-                    <option value="read" ${value === 'read' ? 'selected' : ''}>Lecture seule</option>
-                    <option value="manage" ${value === 'manage' ? 'selected' : ''}>Gestion complète</option>
-                </select>
-            </td>
-        </tr>`;
-    }).join('');
+// Les permissions par section (surcharge individuelle par utilisateur) ne
+// sont plus éditables depuis cette fenêtre ; la capacité reste en base
+// (table user_permissions, voir includes/permissions.php) pour une
+// implémentation future — on ne l'écrase donc jamais depuis ce formulaire
+// (payload sans la clé permission_overrides, voir plus bas).
+function updateTrainingFieldVisibility() {
+    document.getElementById('user-training-field').classList.toggle('hidden', !getSelectedUserRoles().includes('candidat'));
 }
-
-function updateUserPermissionsVisibility() {
-    const role = document.getElementById('user-role').value;
-    document.getElementById('user-permissions-field').classList.toggle('hidden', role === 'super_admin');
-    document.getElementById('user-training-field').classList.toggle('hidden', role !== 'candidat');
-}
-
-document.getElementById('user-role').addEventListener('change', () => {
-    renderUserPermissionsTable(document.getElementById('user-role').value, {});
-    updateUserPermissionsVisibility();
-});
 
 document.getElementById('new-user-btn').addEventListener('click', () => openUserModal(null));
 document.getElementById('user-cancel-btn').addEventListener('click', () => userModal.classList.add('hidden'));
@@ -1000,12 +979,13 @@ userForm.addEventListener('submit', async (e) => {
     const modalMsg = document.getElementById('user-modal-msg');
     modalMsg.textContent = '';
     const saveBtn = document.getElementById('user-save-btn');
-    saveBtn.disabled = true;
 
-    const permissionOverrides = {};
-    document.querySelectorAll('.user-perm-select').forEach(sel => {
-        if (sel.value !== '__default__') permissionOverrides[sel.dataset.section] = sel.value;
-    });
+    const selectedRoles = getSelectedUserRoles();
+    if (!selectedRoles.length) {
+        modalMsg.textContent = 'Sélectionnez au moins un rôle';
+        return;
+    }
+    saveBtn.disabled = true;
 
     const payload = {
         id: document.getElementById('user-id').value || null,
@@ -1017,13 +997,12 @@ userForm.addEventListener('submit', async (e) => {
         telephone: document.getElementById('user-telephone').value,
         numero_licence: document.getElementById('user-numero-licence').value,
         club: document.getElementById('user-club').value,
-        role: document.getElementById('user-role').value,
+        roles: selectedRoles,
         actif: document.getElementById('user-actif').checked,
         niveau_formation: document.getElementById('user-niveau-formation').value,
         option_pratique: document.getElementById('user-option-pratique').value,
         formateur_referent_id: document.getElementById('user-formateur-referent').value || null,
         date_entree_formation: document.getElementById('user-date-entree-formation').value,
-        permission_overrides: permissionOverrides,
     };
 
     try {

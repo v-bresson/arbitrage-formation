@@ -342,6 +342,31 @@ function get_db() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------
+    // Rôles cumulables : un compte peut porter plusieurs rôles à la fois
+    // (ex. Candidat + Formateur). Les permissions effectives (voir
+    // includes/permissions.php) prennent le niveau le plus élevé parmi
+    // tous les rôles cochés, section par section. La colonne users.role
+    // reste renseignée (rôle "principal", le plus élevé des rôles cochés)
+    // pour l'affichage et la compatibilité du code existant, mais les
+    // droits réels se basent sur cette table.
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS user_roles (
+        user_id INT UNSIGNED NOT NULL,
+        role_key VARCHAR(50) NOT NULL,
+        PRIMARY KEY (user_id, role_key),
+        CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Comble les comptes qui n'ont encore aucune ligne ici (comptes créés
+    // avant l'introduction des rôles cumulables) à partir de leur rôle
+    // unique historique — s'auto-corrige à chaque appel, sans effet sur
+    // les comptes déjà migrés vers plusieurs rôles.
+    $pdo->exec("INSERT INTO user_roles (user_id, role_key)
+        SELECT u.id, CASE WHEN u.role = 'admin' THEN 'super_admin' WHEN u.role = 'user' THEN 'candidat' ELSE u.role END
+        FROM users u
+        WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id)");
+
+    // ---------------------------------------------------------------
     // Rôles disponibles (4 rôles historiques + rôles personnalisés créés
     // depuis l'onglet Rôles de l'administration) et groupe de droits par
     // défaut de chaque rôle (une ligne par section admin ; absente =

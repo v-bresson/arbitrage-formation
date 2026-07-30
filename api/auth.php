@@ -49,8 +49,10 @@ if ($action === 'setup') {
 
     $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif) VALUES (?, ?, ?, 1)');
     $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), 'super_admin']);
+    $newId = (int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_key) VALUES (?, ?)')->execute([$newId, 'super_admin']);
 
-    $_SESSION['user_id'] = (int)$pdo->lastInsertId();
+    $_SESSION['user_id'] = $newId;
     $_SESSION['username'] = $username;
     $_SESSION['role'] = 'super_admin';
     echo json_encode(['success' => true, 'role' => 'super_admin']);
@@ -105,6 +107,7 @@ if ($action === 'check') {
             'username' => $_SESSION['username'],
             'role' => $role,
             'role_label' => qa_role_label($pdo, $role),
+            'roles' => qa_user_role_keys($pdo, (int)$_SESSION['user_id'], $role),
             'permissions' => qa_effective_permissions($pdo, (int)$_SESSION['user_id'], $role),
             'has_admin_access' => qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role),
             'has_formateur_access' => qa_has_formateur_access($pdo, (int)$_SESSION['user_id'], $role),
