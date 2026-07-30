@@ -205,7 +205,7 @@ function get_db() {
     $tileCount = (int)$pdo->query('SELECT COUNT(*) c FROM tiles')->fetch()['c'];
     if ($tileCount === 0) {
         $pdo->exec("INSERT INTO tiles (nom, description, type, icone, admin_uniquement, ordre, actif) VALUES
-            ('Questionnaires', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', 'target', 0, 1, 1)");
+            ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', 'target', 0, 1, 1)");
     }
 
     return $pdo;

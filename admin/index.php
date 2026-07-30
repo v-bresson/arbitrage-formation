@@ -130,7 +130,7 @@
             <!-- ---------- ADMINISTRATION > TUILES ---------- -->
             <div id="tab-tiles" class="tab-panel hidden">
                 <h2 style="margin-bottom:16px;">Tuiles du dashboard</h2>
-                <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Questionnaires" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe). La tuile "Administration" est ajoutée automatiquement pour les comptes admin et ne se configure pas ici.</p>
+                <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Candidats arbitres" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe). La tuile "Administration" est ajoutée automatiquement pour les comptes admin et ne se configure pas ici.</p>
                 <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
                     <button type="button" id="new-tile-btn">+ Nouvelle tuile</button>
                 </div>
@@ -348,7 +348,7 @@
                 <div class="field">
                     <label>Type</label>
                     <select id="tile-type">
-                        <option value="questionnaire">Questionnaires (module intégré)</option>
+                        <option value="questionnaire">Candidats arbitres (module intégré)</option>
                         <option value="lien">Lien (URL)</option>
                     </select>
                 </div>

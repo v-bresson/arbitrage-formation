@@ -672,7 +672,7 @@ qaWatchEffect(() => {
 });
 
 // ================= TUILES (DASHBOARD) =================
-const TILE_TYPE_LABELS = { questionnaire: 'Questionnaires (module intégré)', lien: 'Lien' };
+const TILE_TYPE_LABELS = { questionnaire: 'Candidats arbitres (module intégré)', lien: 'Lien' };
 
 async function loadTilesAdmin() {
     try {
