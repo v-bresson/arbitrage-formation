@@ -348,5 +348,23 @@ if ($action === 'submit') {
     exit;
 }
 
+if ($action === 'my-stats') {
+    $candidat = $_SESSION['username'];
+    $stmt = $pdo->prepare("SELECT COUNT(*) total,
+        SUM(CASE WHEN reussi = 1 THEN 1 ELSE 0 END) reussies,
+        AVG(CASE WHEN afficher_score = 1 AND score IS NOT NULL AND note_max > 0 THEN score / note_max * 100 ELSE NULL END) moyenne,
+        MAX(completed_at) derniere
+        FROM tentatives WHERE candidat = ? AND statut IN ('terminee', 'expiree')");
+    $stmt->execute([$candidat]);
+    $row = $stmt->fetch();
+    echo json_encode([
+        'total_tentatives' => (int)($row['total'] ?? 0),
+        'reussies' => (int)($row['reussies'] ?? 0),
+        'moyenne_pct' => $row['moyenne'] !== null ? round((float)$row['moyenne'], 1) : null,
+        'derniere_tentative' => $row['derniere'],
+    ]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['error' => 'Action inconnue']);

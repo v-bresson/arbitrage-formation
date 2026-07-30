@@ -89,6 +89,19 @@ function qa_schema_migrations() {
             // compte n'ait encore un ancien rôle ('admin'/'user') à renommer.
             'legacy_check' => "SELECT COUNT(*) c FROM users WHERE role IN ('admin', 'user')",
         ],
+        [
+            'id' => 'tile_mes_stages_2026_07',
+            'description' => "Ajoute la tuile « Mes stages » sur le dashboard (module stages à venir)",
+            'statements' => [
+                "INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif)
+                 SELECT 'Mes stages', 'Suivi de vos stages de formation.', 'lien', 'stages.php', 'clipboard', 0, 2, 1
+                 WHERE NOT EXISTS (SELECT 1 FROM tiles WHERE nom = 'Mes stages')",
+            ],
+            // Non déjà appliquée tant que la tuile n'existe pas (neuve ou pas,
+            // la table tiles existe toujours : c'est la présence de la tuile
+            // elle-même qui fait foi).
+            'legacy_check' => "SELECT (SELECT COUNT(*) FROM tiles WHERE nom = 'Mes stages') = 0 AS c",
+        ],
     ];
 }
 
@@ -323,8 +336,9 @@ function get_db() {
 
     $tileCount = (int)$pdo->query('SELECT COUNT(*) c FROM tiles')->fetch()['c'];
     if ($tileCount === 0) {
-        $pdo->exec("INSERT INTO tiles (nom, description, type, icone, admin_uniquement, ordre, actif) VALUES
-            ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', 'target', 0, 1, 1)");
+        $pdo->exec("INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif) VALUES
+            ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', NULL, 'target', 0, 1, 1),
+            ('Mes stages', 'Suivi de vos stages de formation.', 'lien', 'stages.php', 'clipboard', 0, 2, 1)");
     }
 
     // ---------------------------------------------------------------

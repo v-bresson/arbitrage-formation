@@ -472,3 +472,61 @@ footer {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ---------- Interrupteur (mode paramétrage, etc.) ---------- */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition: 0.15s;
+}
+.switch-slider::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: 0.15s;
+}
+.switch input:checked + .switch-slider { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .switch-slider::before { transform: translateX(18px); background: #fff; }
+
+/* ---------- Tuiles du dashboard en mode paramétrage ---------- */
+.tile-manage-card { position: relative; }
+.tile-manage-actions {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+.tile-manage-actions button {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    width: auto;
+}
+.tile-add-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    min-height: 120px;
+    font-size: 0.95rem;
+}
+.tile-add-card:hover { color: var(--accent); border-color: var(--accent); }

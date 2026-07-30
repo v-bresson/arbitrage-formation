@@ -94,6 +94,12 @@ if ($action === 'logout') {
 if ($action === 'check') {
     if (!empty($_SESSION['user_id'])) {
         $role = $_SESSION['role'] ?? 'candidat';
+        $profile = [];
+        if (qa_column_exists($pdo, 'users', 'nom')) {
+            $stmt = $pdo->prepare('SELECT nom, prenom, club, numero_licence FROM users WHERE id = ?');
+            $stmt->execute([(int)$_SESSION['user_id']]);
+            $profile = $stmt->fetch() ?: [];
+        }
         echo json_encode([
             'authenticated' => true,
             'username' => $_SESSION['username'],
@@ -101,6 +107,10 @@ if ($action === 'check') {
             'role_label' => QA_ROLE_LABELS[$role] ?? $role,
             'permissions' => qa_effective_permissions($pdo, (int)$_SESSION['user_id'], $role),
             'has_admin_access' => qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role),
+            'nom' => $profile['nom'] ?? null,
+            'prenom' => $profile['prenom'] ?? null,
+            'club' => $profile['club'] ?? null,
+            'numero_licence' => $profile['numero_licence'] ?? null,
         ]);
     } else {
         echo json_encode(['authenticated' => false]);

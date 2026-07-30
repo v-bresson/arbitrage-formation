@@ -50,7 +50,6 @@
             <div class="sidebar-group">
                 <button type="button" class="sidebar-group-toggle">Administration</button>
                 <div class="sidebar-submenu">
-                    <button type="button" class="sidebar-link" data-tab="tiles">Tuiles</button>
                     <button type="button" class="sidebar-link" data-tab="maintenance">Mise à jour système</button>
                 </div>
             </div>
@@ -134,17 +133,6 @@
                     </table>
                 </div>
                 <p class="msg" id="users-msg"></p>
-            </div>
-
-            <!-- ---------- ADMINISTRATION > TUILES ---------- -->
-            <div id="tab-tiles" class="tab-panel hidden">
-                <h2 style="margin-bottom:16px;">Tuiles du dashboard</h2>
-                <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Candidats arbitres" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe). La tuile "Administration" est ajoutée automatiquement pour les comptes admin et ne se configure pas ici.</p>
-                <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-                    <button type="button" id="new-tile-btn">+ Nouvelle tuile</button>
-                </div>
-                <div class="grid" id="tiles-admin-grid"></div>
-                <p class="msg" id="tiles-admin-msg"></p>
             </div>
 
             <!-- ---------- ADMINISTRATION > MISE A JOUR SYSTEME ---------- -->
@@ -352,48 +340,6 @@
                 <button type="submit" id="quiz-save-btn">Enregistrer</button>
             </div>
             <div class="msg error" id="quiz-modal-msg"></div>
-        </form>
-    </div>
-</div>
-
-<!-- ================= MODALE TUILE ================= -->
-<div id="tile-modal-overlay" class="modal-overlay hidden">
-    <div class="modal">
-        <h2 id="tile-modal-title">Nouvelle tuile</h2>
-        <form id="tile-form" style="display:flex;flex-direction:column;gap:12px;">
-            <input type="hidden" id="tile-id">
-            <div class="field"><label>Nom</label><input type="text" id="tile-nom" required></div>
-            <div class="field"><label>Description</label><textarea id="tile-desc" rows="2"></textarea></div>
-            <div class="field-row">
-                <div class="field">
-                    <label>Type</label>
-                    <select id="tile-type">
-                        <option value="questionnaire">Candidats arbitres (module intégré)</option>
-                        <option value="lien">Lien (URL)</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Icône</label>
-                    <select id="tile-icone">
-                        <option value="target">Cible</option>
-                        <option value="trophy">Trophée</option>
-                        <option value="clipboard">Presse-papier</option>
-                        <option value="users">Utilisateurs</option>
-                        <option value="lock">Cadenas</option>
-                        <option value="wifi">Wifi</option>
-                        <option value="info">Info</option>
-                    </select>
-                </div>
-            </div>
-            <div class="field" id="tile-url-field"><label>URL</label><input type="text" id="tile-url" placeholder="https:// ou /chemin"></div>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="tile-admin-uniquement" style="width:auto;"> Réservée aux administrateurs</label>
-            <div class="field"><label>Ordre d'affichage</label><input type="number" id="tile-ordre" value="0"></div>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="tile-actif" style="width:auto;" checked> Tuile active</label>
-            <div class="modal-actions">
-                <button type="button" class="secondary" id="tile-cancel-btn">Annuler</button>
-                <button type="submit" id="tile-save-btn">Enregistrer</button>
-            </div>
-            <div class="msg error" id="tile-modal-msg"></div>
         </form>
     </div>
 </div>

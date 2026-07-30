@@ -45,7 +45,6 @@ const TAB_SECTIONS = {
     quizzes: 'quizzes',
     attempts: 'attempts',
     users: 'users',
-    tiles: 'tiles',
     maintenance: 'maintenance',
 };
 
@@ -72,7 +71,6 @@ function applyPermissionGating() {
     document.getElementById('new-question-btn').classList.toggle('hidden', !canManage('questions'));
     document.getElementById('import-btn').classList.toggle('hidden', !canManage('questions'));
     document.getElementById('new-quiz-btn').classList.toggle('hidden', !canManage('quizzes'));
-    document.getElementById('new-tile-btn').classList.toggle('hidden', !canManage('tiles'));
     document.getElementById('new-user-btn').classList.toggle('hidden', !canManage('users'));
 
     // Si l'onglet actif n'est plus accessible (permission retirée entre
@@ -92,7 +90,6 @@ const vm = qaReactive({
     categoryFilter: '',
     quizzes: [],
     attempts: [],
-    tiles: [],
     users: [],
     maint: {
         version: '',
@@ -106,7 +103,6 @@ const vm = qaReactive({
         questions: '',
         quizzes: '',
         attempts: '',
-        tiles: '',
         users: '',
         maintBackups: '',
     },
@@ -167,7 +163,6 @@ function selectSidebarTab(tab) {
 
     if (tab === 'quizzes') loadQuizzes();
     if (tab === 'attempts') loadAttempts();
-    if (tab === 'tiles') loadTilesAdmin();
     if (tab === 'users') loadUsers();
     if (tab === 'maintenance') loadMaintenance();
 }
@@ -728,151 +723,6 @@ qaWatchEffect(() => {
     `;
     }).join('');
 });
-
-// ================= TUILES (DASHBOARD) =================
-const TILE_TYPE_LABELS = { questionnaire: 'Candidats arbitres (module intégré)', lien: 'Lien' };
-
-async function loadTilesAdmin() {
-    try {
-        const res = await fetch('../api/tiles.php?action=list_admin');
-        vm.tiles = await res.json();
-        vm.msg.tiles = vm.tiles.length ? '' : 'Aucune tuile configurée.';
-    } catch (err) {
-        vm.msg.tiles = 'Erreur de chargement des tuiles';
-    }
-}
-
-// ---------- Rendu : grille des tuiles ----------
-qaWatchEffect(() => {
-    const grid = document.getElementById('tiles-admin-grid');
-    document.getElementById('tiles-admin-msg').textContent = vm.msg.tiles;
-
-    if (!vm.tiles.length) {
-        grid.innerHTML = '';
-        return;
-    }
-
-    grid.innerHTML = vm.tiles.map(t => `
-        <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                <h2>${escapeHtml(t.nom)}</h2>
-                <span class="pill">${TILE_TYPE_LABELS[t.type] || t.type}</span>
-            </div>
-            <p>${escapeHtml(t.description || '')}</p>
-            <div class="meta">
-                <span class="pill">Ordre : ${t.ordre}</span>
-                ${t.admin_uniquement ? '<span class="pill warn">Réservée admin</span>' : ''}
-                <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
-            </div>
-            ${canManage('tiles') ? `
-            <div class="row-actions" style="margin-top:8px;">
-                <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
-                <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
-            </div>` : ''}
-        </div>
-    `).join('');
-
-    grid.querySelectorAll('.edit-tile-btn').forEach(btn => btn.addEventListener('click', () => openTileModal(btn.dataset.id)));
-    grid.querySelectorAll('.delete-tile-btn').forEach(btn => btn.addEventListener('click', () => deleteTile(btn.dataset.id)));
-});
-
-const tileModal = document.getElementById('tile-modal-overlay');
-const tileForm = document.getElementById('tile-form');
-const tileTypeSelect = document.getElementById('tile-type');
-
-function updateTileTypeFields() {
-    document.getElementById('tile-url-field').classList.toggle('hidden', tileTypeSelect.value !== 'lien');
-}
-tileTypeSelect.addEventListener('change', updateTileTypeFields);
-
-function openTileModal(id) {
-    const modalMsg = document.getElementById('tile-modal-msg');
-    modalMsg.textContent = '';
-    tileForm.reset();
-    document.getElementById('tile-id').value = '';
-    document.getElementById('tile-type').value = 'lien';
-    document.getElementById('tile-icone').value = 'info';
-    document.getElementById('tile-ordre').value = 0;
-    document.getElementById('tile-admin-uniquement').checked = false;
-    document.getElementById('tile-actif').checked = true;
-    document.getElementById('tile-modal-title').textContent = 'Nouvelle tuile';
-
-    if (id) {
-        const t = vm.tiles.find(x => String(x.id) === String(id));
-        if (t) {
-            document.getElementById('tile-modal-title').textContent = 'Modifier la tuile';
-            document.getElementById('tile-id').value = t.id;
-            document.getElementById('tile-nom').value = t.nom;
-            document.getElementById('tile-desc').value = t.description || '';
-            document.getElementById('tile-type').value = t.type;
-            document.getElementById('tile-url').value = t.url || '';
-            document.getElementById('tile-icone').value = t.icone;
-            document.getElementById('tile-admin-uniquement').checked = t.admin_uniquement;
-            document.getElementById('tile-ordre').value = t.ordre;
-            document.getElementById('tile-actif').checked = t.actif;
-        }
-    }
-    updateTileTypeFields();
-    tileModal.classList.remove('hidden');
-}
-
-document.getElementById('new-tile-btn').addEventListener('click', () => openTileModal(null));
-document.getElementById('tile-cancel-btn').addEventListener('click', () => tileModal.classList.add('hidden'));
-tileModal.addEventListener('click', e => { if (e.target === tileModal) tileModal.classList.add('hidden'); });
-
-tileForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const modalMsg = document.getElementById('tile-modal-msg');
-    modalMsg.textContent = '';
-    const saveBtn = document.getElementById('tile-save-btn');
-    saveBtn.disabled = true;
-
-    const payload = {
-        id: document.getElementById('tile-id').value || null,
-        nom: document.getElementById('tile-nom').value,
-        description: document.getElementById('tile-desc').value,
-        type: document.getElementById('tile-type').value,
-        url: document.getElementById('tile-url').value,
-        icone: document.getElementById('tile-icone').value,
-        admin_uniquement: document.getElementById('tile-admin-uniquement').checked,
-        ordre: parseInt(document.getElementById('tile-ordre').value, 10) || 0,
-        actif: document.getElementById('tile-actif').checked,
-    };
-
-    try {
-        const res = await fetch('../api/tiles.php?action=save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        if (data.success) {
-            tileModal.classList.add('hidden');
-            await loadTilesAdmin();
-        } else {
-            modalMsg.textContent = data.message || "Erreur lors de l'enregistrement";
-        }
-    } catch (err) {
-        modalMsg.textContent = 'Erreur de connexion au serveur';
-    } finally {
-        saveBtn.disabled = false;
-    }
-});
-
-async function deleteTile(id) {
-    if (!confirm('Supprimer cette tuile du dashboard ?')) return;
-    try {
-        const res = await fetch('../api/tiles.php?action=delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id }),
-        });
-        const data = await res.json();
-        if (data.success) await loadTilesAdmin();
-    } catch (err) {
-        vm.msg.tiles = 'Erreur de connexion au serveur';
-    }
-}
 
 // ================= UTILISATEURS =================
 let roleDefaults = {};
