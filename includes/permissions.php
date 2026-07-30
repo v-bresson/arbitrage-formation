@@ -119,6 +119,31 @@ function qa_has_any_admin_access($pdo, $userId, $role) {
     return false;
 }
 
+// Tuile « Espace formateur » sur l'accueil : accès à au moins une section
+// de suivi des candidats (questions/questionnaires/résultats), sans être
+// super_admin (qui a sa propre tuile « Administration », superset).
+function qa_has_formateur_access($pdo, $userId, $role) {
+    $role = qa_normalize_role($role);
+    if ($role === 'super_admin') return false;
+    $perms = qa_effective_permissions($pdo, $userId, $role);
+    foreach (['questions', 'quizzes', 'attempts'] as $section) {
+        if (($perms[$section] ?? 'none') !== 'none') return true;
+    }
+    return false;
+}
+
+// Tuile « Administration » sur l'accueil : gestion des comptes ou
+// maintenance système (super_admin toujours inclus).
+function qa_has_pure_admin_access($pdo, $userId, $role) {
+    $role = qa_normalize_role($role);
+    if ($role === 'super_admin') return true;
+    $perms = qa_effective_permissions($pdo, $userId, $role);
+    foreach (['users', 'maintenance'] as $section) {
+        if (($perms[$section] ?? 'none') !== 'none') return true;
+    }
+    return false;
+}
+
 // Garde d'accès pour les endpoints API admin, section par section — à la
 // place d'une simple vérification de rôle : coupe court si la session
 // n'a pas au moins $minLevel sur $section.

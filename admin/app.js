@@ -134,6 +134,14 @@ async function checkSession() {
         applyPermissionGating();
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
         initAdmin();
+
+        // Lien direct depuis l'espace formateur (ex. admin/index.php?tab=quizzes) :
+        // sélectionne l'onglet demandé s'il est accessible avec les droits de l'utilisateur.
+        const requestedTab = new URLSearchParams(window.location.search).get('tab');
+        if (requestedTab) {
+            const requestedBtn = document.querySelector(`.sidebar-link[data-tab="${requestedTab}"]`);
+            if (requestedBtn && !requestedBtn.classList.contains('hidden')) selectSidebarTab(requestedTab);
+        }
     } catch (err) {
         window.location.href = '../index.php';
     }

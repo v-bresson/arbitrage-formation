@@ -1,11 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/require_user.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/permissions.php';
 
 require_user();
 header('Content-Type: application/json');
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+if ($action === 'formateur-stats') {
+    require_permission('attempts', 'read');
+}
 
 function qa_pool_where($type) {
     return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
@@ -361,6 +365,22 @@ if ($action === 'my-stats') {
         'total_tentatives' => (int)($row['total'] ?? 0),
         'reussies' => (int)($row['reussies'] ?? 0),
         'moyenne_pct' => $row['moyenne'] !== null ? round((float)$row['moyenne'], 1) : null,
+        'derniere_tentative' => $row['derniere'],
+    ]);
+    exit;
+}
+
+if ($action === 'formateur-stats') {
+    $stmt = $pdo->query("SELECT COUNT(DISTINCT candidat) candidats,
+        COUNT(*) total,
+        SUM(CASE WHEN reussi = 1 THEN 1 ELSE 0 END) reussies,
+        MAX(completed_at) derniere
+        FROM tentatives WHERE statut IN ('terminee', 'expiree')");
+    $row = $stmt->fetch();
+    echo json_encode([
+        'candidats' => (int)($row['candidats'] ?? 0),
+        'total_tentatives' => (int)($row['total'] ?? 0),
+        'reussies' => (int)($row['reussies'] ?? 0),
         'derniere_tentative' => $row['derniere'],
     ]);
     exit;

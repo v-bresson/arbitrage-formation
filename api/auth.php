@@ -107,6 +107,8 @@ if ($action === 'check') {
             'role_label' => QA_ROLE_LABELS[$role] ?? $role,
             'permissions' => qa_effective_permissions($pdo, (int)$_SESSION['user_id'], $role),
             'has_admin_access' => qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role),
+            'has_formateur_access' => qa_has_formateur_access($pdo, (int)$_SESSION['user_id'], $role),
+            'has_pure_admin_access' => qa_has_pure_admin_access($pdo, (int)$_SESSION['user_id'], $role),
             'nom' => $profile['nom'] ?? null,
             'prenom' => $profile['prenom'] ?? null,
             'club' => $profile['club'] ?? null,
