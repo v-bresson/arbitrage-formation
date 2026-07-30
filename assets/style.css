@@ -76,6 +76,12 @@ a { color: var(--accent); }
 
 .page.wide { max-width: 1100px; }
 
+/* Écrans précédés d'un .brand.center : le formulaire suit le logo de
+   près plutôt que d'être centré verticalement dans toute la page. */
+.brand.center ~ .page {
+    margin: 4px auto auto;
+}
+
 .panel {
     background: var(--bg-card);
     border: 1px solid var(--border);
