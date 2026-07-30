@@ -10,7 +10,7 @@
 
 <div class="brand center">
     <img src="assets/logo.png" alt="ArcheryOps Judging">
-    <p class="subtitle" id="page-brand-subtitle">Connexion</p>
+    <p class="subtitle" id="page-brand-subtitle"></p>
 </div>
 
 <!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
@@ -36,17 +36,41 @@
 
 <footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
 
+<script src="assets/mvvm.js"></script>
 <script>
-const screens = {
-    setup: document.getElementById('setup-screen'),
-    login: document.getElementById('login-screen'),
-};
+// ---------- ViewModel ----------
+// Seul état réactif de la page : quel écran afficher, le texte du
+// sous-titre, et les messages d'erreur/état "occupé" des deux
+// formulaires. La vue (bind()) se redessine seule dès qu'une de ces
+// propriétés change — aucun appel manuel à une fonction de rendu.
+const vm = qaReactive({
+    screen: null, // 'setup' | 'login'
+    subtitle: 'Connexion',
+    setupError: '',
+    setupBusy: false,
+    loginError: '',
+    loginBusy: false,
+});
 
-function showScreen(name) {
-    Object.values(screens).forEach(s => s.classList.add('hidden'));
-    screens[name].classList.remove('hidden');
+function bind() {
+    document.getElementById('page-brand-subtitle').textContent = vm.subtitle;
+
+    document.getElementById('setup-screen').classList.toggle('hidden', vm.screen !== 'setup');
+    document.getElementById('login-screen').classList.toggle('hidden', vm.screen !== 'login');
+
+    document.getElementById('setup-error').textContent = vm.setupError;
+    const setupBtn = document.getElementById('setup-btn');
+    setupBtn.disabled = vm.setupBusy;
+    setupBtn.textContent = vm.setupBusy ? 'Création...' : 'Créer le compte administrateur';
+
+    document.getElementById('login-error').textContent = vm.loginError;
+    const loginBtn = document.getElementById('login-btn');
+    loginBtn.disabled = vm.loginBusy;
+    loginBtn.textContent = vm.loginBusy ? 'Connexion...' : 'Se connecter';
 }
+qaWatchEffect(bind);
 
+// ---------- Méthodes du ViewModel ----------
 async function checkSession() {
     try {
         const statusRes = await fetch('api/auth.php', {
@@ -56,8 +80,8 @@ async function checkSession() {
         });
         const statusData = await statusRes.json();
         if (!statusData.configured) {
-            document.getElementById('page-brand-subtitle').textContent = 'Première connexion — crée le compte administrateur';
-            showScreen('setup');
+            vm.subtitle = 'Première connexion — crée le compte administrateur';
+            vm.screen = 'setup';
             return;
         }
 
@@ -70,10 +94,11 @@ async function checkSession() {
         if (data.authenticated) {
             window.location.href = 'dashboard.php';
         } else {
-            showScreen('login');
+            vm.subtitle = 'Connexion';
+            vm.screen = 'login';
         }
     } catch (err) {
-        showScreen('login');
+        vm.screen = 'login';
     }
 }
 
@@ -82,18 +107,14 @@ document.getElementById('setup-form').addEventListener('submit', async (e) => {
     const username = document.getElementById('setup-username-input').value;
     const password = document.getElementById('setup-password-input').value;
     const passwordConfirm = document.getElementById('setup-password-confirm-input').value;
-    const errorEl = document.getElementById('setup-error');
-    errorEl.textContent = '';
+    vm.setupError = '';
 
     if (password !== passwordConfirm) {
-        errorEl.textContent = 'Les mots de passe ne correspondent pas';
+        vm.setupError = 'Les mots de passe ne correspondent pas';
         return;
     }
 
-    const btn = document.getElementById('setup-btn');
-    btn.disabled = true;
-    btn.textContent = 'Création...';
-
+    vm.setupBusy = true;
     try {
         const res = await fetch('api/auth.php', {
             method: 'POST',
@@ -104,13 +125,12 @@ document.getElementById('setup-form').addEventListener('submit', async (e) => {
         if (data.success) {
             window.location.href = 'dashboard.php';
         } else {
-            errorEl.textContent = data.message || 'Impossible de créer le compte';
+            vm.setupError = data.message || 'Impossible de créer le compte';
         }
     } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
+        vm.setupError = 'Erreur de connexion au serveur';
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Créer le compte administrateur';
+        vm.setupBusy = false;
     }
 });
 
@@ -118,12 +138,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('username-input').value;
     const password = document.getElementById('password-input').value;
-    const errorEl = document.getElementById('login-error');
-    errorEl.textContent = '';
-
-    const btn = document.getElementById('login-btn');
-    btn.disabled = true;
-    btn.textContent = 'Connexion...';
+    vm.loginError = '';
+    vm.loginBusy = true;
 
     try {
         const res = await fetch('api/auth.php', {
@@ -135,13 +151,12 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         if (data.success) {
             window.location.href = 'dashboard.php';
         } else {
-            errorEl.textContent = data.message || 'Identifiant ou mot de passe incorrect';
+            vm.loginError = data.message || 'Identifiant ou mot de passe incorrect';
         }
     } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
+        vm.loginError = 'Erreur de connexion au serveur';
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Se connecter';
+        vm.loginBusy = false;
     }
 });
 

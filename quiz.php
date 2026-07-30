@@ -69,67 +69,40 @@
 
 <footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
 
+<script src="assets/mvvm.js"></script>
 <script>
-const screens = {
-    list: document.getElementById('list-screen'),
-    start: document.getElementById('start-screen'),
-    quiz: document.getElementById('quiz-screen'),
-    result: document.getElementById('result-screen'),
-};
-
-function showScreen(name) {
-    Object.values(screens).forEach(s => s.classList.add('hidden'));
-    screens[name].classList.remove('hidden');
-}
-
 function escapeHtml(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-let currentUsername = null;
-let currentQuiz = null;
-let currentQuestions = [];
-let answers = {};
-let tentativeId = null;
-let timerInterval = null;
-let deadlineTs = null;
+// ---------- ViewModel ----------
+// Écran affiché, liste des questionnaires, infos du questionnaire choisi
+// et résultat final : la vue (bind()) se redessine seule dès qu'une de
+// ces propriétés change. Le questionnaire en cours de passage (liste des
+// questions, réponses saisies, minuteur) reste volontairement en dehors
+// de cet état réactif — voir la note dans assets/mvvm.js : un ré-rendu
+// complet à chaque réponse cochée ou chaque tic du minuteur casserait le
+// focus des champs et la sélection en cours.
+const vm = qaReactive({
+    screen: 'list', // 'list' | 'start' | 'quiz' | 'result'
+    quizzes: null, // null = pas encore chargé
+    listMsg: '',
+    currentQuiz: null,
+    startError: '',
+    startBusy: false,
+    result: null, // { withScore, note, note_max, reussi, detail, expiredMsg } | { withScore: false }
+});
 
-async function checkAuth() {
-    try {
-        const res = await fetch('api/auth.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'action=check',
-        });
-        const data = await res.json();
-        if (!data.authenticated) {
-            window.location.href = 'index.php';
-            return false;
-        }
-        currentUsername = data.username;
-        return true;
-    } catch (err) {
-        window.location.href = 'index.php';
-        return false;
-    }
-}
+function bind() {
+    document.getElementById('list-screen').classList.toggle('hidden', vm.screen !== 'list');
+    document.getElementById('start-screen').classList.toggle('hidden', vm.screen !== 'start');
+    document.getElementById('quiz-screen').classList.toggle('hidden', vm.screen !== 'quiz');
+    document.getElementById('result-screen').classList.toggle('hidden', vm.screen !== 'result');
 
-async function loadQuizList() {
     const grid = document.getElementById('quiz-grid');
-    const msg = document.getElementById('list-msg');
-    try {
-        const res = await fetch('api/attempt.php?action=quizzes');
-        if (res.status === 401) { window.location.href = 'index.php'; return; }
-        const quizzes = await res.json();
-
-        if (!quizzes.length) {
-            msg.textContent = "Aucun questionnaire n'est disponible pour le moment.";
-            grid.innerHTML = '';
-            return;
-        }
-
-        msg.textContent = '';
-        grid.innerHTML = quizzes.map(q => {
+    document.getElementById('list-msg').textContent = vm.listMsg;
+    if (vm.quizzes && vm.quizzes.length) {
+        grid.innerHTML = vm.quizzes.map(q => {
             const closed = !!q.ferme;
             const notEnough = !q.suffisant;
             const disabled = closed || notEnough;
@@ -157,45 +130,105 @@ async function loadQuizList() {
             </div>
         `;
         }).join('');
+        grid.querySelectorAll('.start-quiz-btn').forEach(btn => btn.addEventListener('click', () => openStartScreen(btn.dataset)));
+    } else {
+        grid.innerHTML = '';
+    }
 
-        grid.querySelectorAll('.start-quiz-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                currentQuiz = {
-                    id: btn.dataset.id, nom: btn.dataset.nom, desc: btn.dataset.desc,
-                    type: btn.dataset.type, duree: btn.dataset.duree, tentatives: btn.dataset.tentatives,
-                };
-                document.getElementById('start-quiz-name').textContent = currentQuiz.nom;
-                document.getElementById('start-quiz-desc').textContent = currentQuiz.desc;
-                document.getElementById('start-candidat-name').textContent = currentUsername;
-                const metaEl = document.getElementById('start-quiz-meta');
-                let metaHtml = `<span class="pill ${currentQuiz.type === 'examen' ? 'warn' : 'ok'}">${currentQuiz.type === 'examen' ? 'Examen' : 'Entraînement'}</span>`;
-                if (currentQuiz.duree) metaHtml += `<span class="pill">${currentQuiz.duree} min chrono</span>`;
-                if (currentQuiz.tentatives) metaHtml += `<span class="pill">${currentQuiz.tentatives} tentative(s) max</span>`;
-                metaEl.innerHTML = metaHtml;
-                document.getElementById('start-error').textContent = '';
-                showScreen('start');
-            });
+    if (vm.currentQuiz) {
+        document.getElementById('start-quiz-name').textContent = vm.currentQuiz.nom;
+        document.getElementById('start-quiz-desc').textContent = vm.currentQuiz.desc;
+        document.getElementById('start-candidat-name').textContent = vm.currentQuiz.username;
+        const metaEl = document.getElementById('start-quiz-meta');
+        let metaHtml = `<span class="pill ${vm.currentQuiz.type === 'examen' ? 'warn' : 'ok'}">${vm.currentQuiz.type === 'examen' ? 'Examen' : 'Entraînement'}</span>`;
+        if (vm.currentQuiz.duree) metaHtml += `<span class="pill">${vm.currentQuiz.duree} min chrono</span>`;
+        if (vm.currentQuiz.tentatives) metaHtml += `<span class="pill">${vm.currentQuiz.tentatives} tentative(s) max</span>`;
+        metaEl.innerHTML = metaHtml;
+    }
+    document.getElementById('start-error').textContent = vm.startError;
+    const startBtn = document.getElementById('start-btn');
+    startBtn.disabled = vm.startBusy;
+    startBtn.textContent = vm.startBusy ? 'Chargement...' : 'Commencer le questionnaire';
+
+    if (vm.result) {
+        document.getElementById('result-expired-msg').textContent = vm.result.expiredMsg || '';
+        document.getElementById('result-with-score').classList.toggle('hidden', !vm.result.withScore);
+        document.getElementById('result-no-score').classList.toggle('hidden', vm.result.withScore);
+        if (vm.result.withScore) {
+            const scoreEl = document.getElementById('result-score');
+            scoreEl.textContent = `${vm.result.note} / ${vm.result.note_max}`;
+            scoreEl.className = 'result-score ' + (vm.result.reussi ? 'ok' : 'ko');
+            document.getElementById('result-detail').textContent = vm.result.detail;
+            const pill = document.getElementById('result-pill');
+            pill.textContent = vm.result.reussi ? 'Réussi' : 'Non validé';
+            pill.className = 'pill ' + (vm.result.reussi ? 'ok' : 'warn');
+        }
+    }
+}
+qaWatchEffect(bind);
+
+// ---------- Passage du questionnaire (imperatif, hors ViewModel réactif) ----------
+let currentUsername = null;
+let currentQuestions = [];
+let answers = {};
+let tentativeId = null;
+let timerInterval = null;
+let deadlineTs = null;
+
+async function checkAuth() {
+    try {
+        const res = await fetch('api/auth.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=check',
         });
+        const data = await res.json();
+        if (!data.authenticated) {
+            window.location.href = 'index.php';
+            return false;
+        }
+        currentUsername = data.username;
+        return true;
     } catch (err) {
-        msg.textContent = 'Erreur de connexion au serveur';
+        window.location.href = 'index.php';
+        return false;
     }
 }
 
-document.getElementById('back-to-list-btn').addEventListener('click', () => showScreen('list'));
-document.getElementById('back-home-btn').addEventListener('click', () => { showScreen('list'); loadQuizList(); });
+async function loadQuizList() {
+    try {
+        const res = await fetch('api/attempt.php?action=quizzes');
+        if (res.status === 401) { window.location.href = 'index.php'; return; }
+        const quizzes = await res.json();
+        vm.quizzes = quizzes;
+        vm.listMsg = quizzes.length ? '' : "Aucun questionnaire n'est disponible pour le moment.";
+    } catch (err) {
+        vm.listMsg = 'Erreur de connexion au serveur';
+    }
+}
+
+function openStartScreen(dataset) {
+    vm.currentQuiz = {
+        id: dataset.id, nom: dataset.nom, desc: dataset.desc,
+        type: dataset.type, duree: dataset.duree, tentatives: dataset.tentatives,
+        username: currentUsername,
+    };
+    vm.startError = '';
+    vm.screen = 'start';
+}
+
+document.getElementById('back-to-list-btn').addEventListener('click', () => { vm.screen = 'list'; });
+document.getElementById('back-home-btn').addEventListener('click', () => { vm.screen = 'list'; loadQuizList(); });
 
 document.getElementById('start-btn').addEventListener('click', async () => {
-    const startBtn = document.getElementById('start-btn');
-    const errorEl = document.getElementById('start-error');
-    errorEl.textContent = '';
-    startBtn.disabled = true;
-    startBtn.textContent = 'Chargement...';
+    vm.startError = '';
+    vm.startBusy = true;
 
     try {
         const res = await fetch('api/attempt.php?action=start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `quiz_id=${encodeURIComponent(currentQuiz.id)}`,
+            body: `quiz_id=${encodeURIComponent(vm.currentQuiz.id)}`,
         });
         const data = await res.json();
         if (data.success) {
@@ -204,15 +237,14 @@ document.getElementById('start-btn').addEventListener('click', async () => {
             answers = {};
             renderQuestions();
             setupTimer(data.started_at, data.duree_minutes);
-            showScreen('quiz');
+            vm.screen = 'quiz';
         } else {
-            errorEl.textContent = data.message || 'Impossible de démarrer le questionnaire';
+            vm.startError = data.message || 'Impossible de démarrer le questionnaire';
         }
     } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
+        vm.startError = 'Erreur de connexion au serveur';
     } finally {
-        startBtn.disabled = false;
-        startBtn.textContent = 'Commencer le questionnaire';
+        vm.startBusy = false;
     }
 });
 
@@ -342,25 +374,15 @@ async function submitQuiz(auto) {
         });
         const data = await res.json();
         if (data.success) {
-            document.getElementById('result-expired-msg').textContent = data.expiree ? "Le temps imparti était écoulé : votre tentative a été enregistrée telle quelle." : '';
-
+            const expiredMsg = data.expiree ? "Le temps imparti était écoulé : votre tentative a été enregistrée telle quelle." : '';
             if (data.afficher_score) {
-                document.getElementById('result-with-score').classList.remove('hidden');
-                document.getElementById('result-no-score').classList.add('hidden');
-                const scoreEl = document.getElementById('result-score');
-                scoreEl.textContent = `${data.note} / ${data.note_max}`;
-                scoreEl.className = 'result-score ' + (data.reussi ? 'ok' : 'ko');
                 let detailTxt = `${data.bonnes_reponses} bonne(s) réponse(s) sur ${data.total_questions_notees} question(s) notée(s)`;
                 if (data.total_questions > data.total_questions_notees) detailTxt += ` (+ ${data.total_questions - data.total_questions_notees} question(s) ouverte(s) à relire manuellement)`;
-                document.getElementById('result-detail').textContent = detailTxt;
-                const pill = document.getElementById('result-pill');
-                pill.textContent = data.reussi ? 'Réussi' : 'Non validé';
-                pill.className = 'pill ' + (data.reussi ? 'ok' : 'warn');
+                vm.result = { withScore: true, note: data.note, note_max: data.note_max, reussi: data.reussi, detail: detailTxt, expiredMsg };
             } else {
-                document.getElementById('result-with-score').classList.add('hidden');
-                document.getElementById('result-no-score').classList.remove('hidden');
+                vm.result = { withScore: false, expiredMsg };
             }
-            showScreen('result');
+            vm.screen = 'result';
         } else {
             errorEl.textContent = data.message || 'Erreur lors de la validation';
         }
@@ -379,7 +401,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
 (async () => {
     const ok = await checkAuth();
     if (!ok) return;
-    showScreen('list');
+    vm.screen = 'list';
     loadQuizList();
 })();
 </script>

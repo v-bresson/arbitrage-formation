@@ -26,6 +26,7 @@
 
 <footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
 
+<script src="assets/mvvm.js"></script>
 <script>
 const ICONS = {
     target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
@@ -41,6 +42,46 @@ function escapeHtml(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ---------- ViewModel ----------
+// Utilisateur connecté, rôle, tuiles chargées et message d'état : la
+// vue (bind()) se redessine seule dès qu'une de ces propriétés change.
+const vm = qaReactive({
+    username: null,
+    role: null,
+    tiles: null, // null = pas encore chargé
+    tilesMsg: '',
+});
+
+function bind() {
+    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
+    document.getElementById('admin-btn').classList.toggle('hidden', vm.role !== 'admin');
+
+    const grid = document.getElementById('tiles-grid');
+    const msg = document.getElementById('tiles-msg');
+    msg.textContent = vm.tilesMsg;
+
+    if (!vm.tiles || !vm.tiles.length) {
+        grid.innerHTML = '';
+        return;
+    }
+
+    grid.innerHTML = vm.tiles.map(t => {
+        const href = t.type === 'questionnaire' ? 'quiz.php' : t.url;
+        const target = t.type === 'lien' ? ' target="_blank" rel="noopener noreferrer"' : '';
+        return `
+        <a class="card" href="${escapeHtml(href)}"${target} style="text-decoration:none;align-items:center;text-align:center;">
+            <div class="icon-wrap" style="width:48px;height:48px;border-radius:12px;background:rgba(91,141,239,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:6px;">
+                <svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;">${ICONS[t.icone] || ICONS.info}</svg>
+            </div>
+            <h2>${escapeHtml(t.nom)}</h2>
+            <p>${escapeHtml(t.description || '')}</p>
+        </a>
+    `;
+    }).join('');
+}
+qaWatchEffect(bind);
+
+// ---------- Méthodes du ViewModel ----------
 async function init() {
     try {
         const res = await fetch('api/auth.php', {
@@ -51,8 +92,8 @@ async function init() {
         const data = await res.json();
         if (!data.authenticated) { window.location.href = 'index.php'; return; }
 
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
-        if (data.role === 'admin') document.getElementById('admin-btn').classList.remove('hidden');
+        vm.username = data.username;
+        vm.role = data.role;
 
         await loadTiles();
     } catch (err) {
@@ -61,35 +102,14 @@ async function init() {
 }
 
 async function loadTiles() {
-    const grid = document.getElementById('tiles-grid');
-    const msg = document.getElementById('tiles-msg');
     try {
         const res = await fetch('api/tiles.php?action=list');
         if (res.status === 401) { window.location.href = 'index.php'; return; }
         const tiles = await res.json();
-
-        if (!tiles.length) {
-            msg.textContent = 'Aucune tuile configurée pour le moment.';
-            grid.innerHTML = '';
-            return;
-        }
-
-        msg.textContent = '';
-        grid.innerHTML = tiles.map(t => {
-            const href = t.type === 'questionnaire' ? 'quiz.php' : t.url;
-            const target = t.type === 'lien' ? ' target="_blank" rel="noopener noreferrer"' : '';
-            return `
-            <a class="card" href="${escapeHtml(href)}"${target} style="text-decoration:none;align-items:center;text-align:center;">
-                <div class="icon-wrap" style="width:48px;height:48px;border-radius:12px;background:rgba(91,141,239,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:6px;">
-                    <svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;">${ICONS[t.icone] || ICONS.info}</svg>
-                </div>
-                <h2>${escapeHtml(t.nom)}</h2>
-                <p>${escapeHtml(t.description || '')}</p>
-            </a>
-        `;
-        }).join('');
+        vm.tiles = tiles;
+        vm.tilesMsg = tiles.length ? '' : 'Aucune tuile configurée pour le moment.';
     } catch (err) {
-        msg.textContent = 'Erreur de chargement des tuiles';
+        vm.tilesMsg = 'Erreur de chargement des tuiles';
     }
 }
 

@@ -2,6 +2,12 @@
 
 Application web PHP + JS pour créer des QCM et faire passer des questionnaires de validation de la formation d'arbitre assistant. Pensée comme un module destiné à s'intégrer, à terme, dans une architecture ArcheryOps plus large (Results, Judging, inscriptions...) partageant un dashboard et une base d'utilisateurs communs.
 
+## Architecture frontend (MVVM maison)
+
+Le JS de chaque page (`index.php`, `dashboard.php`, `quiz.php`, `admin/app.js`) suit un vrai pattern **MVVM**, sans dépendance externe (choix cohérent avec les autres projets de l'écosystème) : un mini-noyau réactif fait main (`assets/mvvm.js`, ~90 lignes) fournit `qaReactive()` (proxy avec suivi de dépendances, comme la réactivité de Vue) et `qaWatchEffect()` (ré-exécution automatique d'une fonction de rendu dès qu'une propriété réactive qu'elle lit est modifiée).
+
+Chaque page définit un état réactif unique (le **ViewModel**) contenant les collections chargées depuis l'API et les messages d'état ; les fonctions `loadXxx()` se contentent d'assigner ce state (le **Model**, côté fetch), et la **vue** (fonctions de rendu passées à `qaWatchEffect`) se redessine seule — plus aucun appel manuel à un rendu après une mutation d'état. Volontairement laissés en dehors de cette réactivité, pour ne pas perdre le focus/curseur en cours de frappe : les champs des formulaires dans les modales (lus nativement via `getElementById` à la soumission), la liste de questions en cours de passage, et le minuteur (mis à jour chaque seconde de façon imperative).
+
 ## Fonctionnalités
 
 - **Connexion** (`index.php`) : point d'entrée unique de l'application. Première visite = création du compte administrateur ; ensuite, écran de connexion classique (identifiant/mot de passe).
@@ -81,6 +87,7 @@ includes/require_admin.php         Garde d'accès : rôle admin
 includes/xlsx_reader.php           Lecteur .xlsx minimaliste sans dépendance
 includes/uploads.php               Gestion des images jointes aux questions
 assets/style.css                   Charte graphique (reprise de serveur-home)
+assets/mvvm.js                      Mini-noyau MVVM maison (état réactif + rendu automatique)
 uploads/questions/                 Images jointes aux questions (non versionnées)
 VERSION.txt                        Version du code déployé, affichée dans l'onglet Maintenance
 backups/                           Sauvegardes de code + journal de maintenance (non versionnés)

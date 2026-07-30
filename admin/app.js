@@ -2,7 +2,18 @@
 // Logique de l'espace admin : auth, CRUD questions (QCM unique/multiple/
 // ouverte + image, réservation examen), import CSV/XLSX, CRUD
 // questionnaires (entraînement/examen, chrono, fenêtre d'ouverture,
-// tentatives max, affichage du score), consultation des résultats.
+// tentatives max, affichage du score), tuiles du dashboard, comptes
+// utilisateurs, maintenance (mise à jour/sauvegardes/journal),
+// consultation des résultats.
+//
+// ViewModel : un seul état réactif (vm, voir assets/mvvm.js) tient les
+// collections chargées depuis l'API et quelques messages d'état ; une
+// fonction de rendu par section lit ce qu'il lui faut dans vm et se
+// redessine automatiquement dès qu'une propriété lue change — les
+// fonctions loadXxx() se contentent d'assigner vm.xxx, sans jamais
+// appeler un rendu manuellement. Les formulaires des modales restent
+// des <input> natifs non liés (lus via getElementById à la soumission)
+// pour ne pas perdre le focus/curseur en cours de frappe.
 // ===================================================================
 
 const screens = {
@@ -25,8 +36,30 @@ const QUESTION_TYPE_LABELS = {
     ouverte: 'Ouverte',
 };
 
-let questions = [];
-let quizzes = [];
+// ---------- ViewModel ----------
+const vm = qaReactive({
+    questions: [],
+    categoryFilter: '',
+    quizzes: [],
+    attempts: [],
+    tiles: [],
+    users: [],
+    maint: {
+        version: '',
+        backupCount: 0,
+        backups: [],
+        githubConfigured: false,
+        logLines: [],
+    },
+    msg: {
+        questions: '',
+        quizzes: '',
+        attempts: '',
+        tiles: '',
+        users: '',
+        maintBackups: '',
+    },
+});
 
 // ---------- Session / connexion ----------
 // L'authentification se fait sur la page de connexion générale
@@ -86,27 +119,13 @@ function initAdmin() {
 
 // ================= QUESTIONS =================
 async function loadQuestions() {
-    const msg = document.getElementById('questions-msg');
     try {
         const res = await fetch('../api/questions.php?action=list');
-        questions = await res.json();
-        renderCategoryFilter();
-        renderQuestions();
+        vm.questions = await res.json();
+        vm.msg.questions = '';
     } catch (err) {
-        msg.textContent = 'Erreur de chargement des questions';
+        vm.msg.questions = 'Erreur de chargement des questions';
     }
-}
-
-function renderCategoryFilter() {
-    const select = document.getElementById('category-filter');
-    const current = select.value;
-    const categories = [...new Set(questions.map(q => q.categorie))].sort();
-    select.innerHTML = '<option value="">Toutes les catégories</option>' +
-        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    select.value = current;
-
-    const datalist = document.getElementById('qz-categories-datalist');
-    if (datalist) datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
 }
 
 function formatBonneReponse(q) {
@@ -115,10 +134,25 @@ function formatBonneReponse(q) {
     return (q.bonne_reponse || '').toUpperCase();
 }
 
-function renderQuestions() {
-    const filter = document.getElementById('category-filter').value;
+// ---------- Rendu : filtre de catégorie + datalist du formulaire questionnaire ----------
+qaWatchEffect(() => {
+    const categories = [...new Set(vm.questions.map(q => q.categorie))].sort();
+
+    const select = document.getElementById('category-filter');
+    const current = select.value;
+    select.innerHTML = '<option value="">Toutes les catégories</option>' +
+        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    select.value = current;
+
+    const datalist = document.getElementById('qz-categories-datalist');
+    if (datalist) datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
+});
+
+// ---------- Rendu : tableau des questions ----------
+qaWatchEffect(() => {
+    const filter = vm.categoryFilter;
     const tbody = document.getElementById('questions-tbody');
-    const filtered = filter ? questions.filter(q => q.categorie === filter) : questions;
+    const filtered = filter ? vm.questions.filter(q => q.categorie === filter) : vm.questions;
 
     if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
@@ -143,9 +177,9 @@ function renderQuestions() {
 
     tbody.querySelectorAll('.edit-q-btn').forEach(btn => btn.addEventListener('click', () => openQuestionModal(btn.dataset.id)));
     tbody.querySelectorAll('.delete-q-btn').forEach(btn => btn.addEventListener('click', () => deleteQuestion(btn.dataset.id)));
-}
+});
 
-document.getElementById('category-filter').addEventListener('change', renderQuestions);
+document.getElementById('category-filter').addEventListener('change', (e) => { vm.categoryFilter = e.target.value; });
 
 const questionModal = document.getElementById('question-modal-overlay');
 const questionForm = document.getElementById('question-form');
@@ -177,7 +211,7 @@ function openQuestionModal(id) {
     questionForm.querySelectorAll('.q-bonne-multi').forEach(cb => cb.checked = false);
 
     if (id) {
-        const q = questions.find(x => String(x.id) === String(id));
+        const q = vm.questions.find(x => String(x.id) === String(id));
         if (q) {
             document.getElementById('question-modal-title').textContent = 'Modifier la question';
             document.getElementById('q-id').value = q.id;
@@ -273,7 +307,7 @@ async function deleteQuestion(id) {
         const data = await res.json();
         if (data.success) await loadQuestions();
     } catch (err) {
-        document.getElementById('questions-msg').textContent = 'Erreur de connexion au serveur';
+        vm.msg.questions = 'Erreur de connexion au serveur';
     }
 }
 
@@ -338,50 +372,54 @@ function fromDatetimeLocal(value) {
 }
 
 async function loadQuizzes() {
-    const grid = document.getElementById('quizzes-grid');
-    const msg = document.getElementById('quizzes-msg');
     try {
         const res = await fetch('../api/quizzes.php?action=list');
-        quizzes = await res.json();
-
-        if (!quizzes.length) {
-            grid.innerHTML = '';
-            msg.textContent = "Aucun questionnaire. Créez-en un pour permettre aux candidats de passer l'évaluation.";
-            return;
-        }
-        msg.textContent = '';
-        grid.innerHTML = quizzes.map(q => `
-            <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                    <h2>${escapeHtml(q.nom)}</h2>
-                    <span class="pill ${q.type === 'examen' ? 'warn' : 'ok'}">${q.type === 'examen' ? 'Examen' : 'Entraînement'}</span>
-                </div>
-                <p>${escapeHtml(q.description || '')}</p>
-                <div class="meta">
-                    <span class="pill">${q.nombre_questions} question(s)</span>
-                    <span class="pill">Note sur ${q.note_max}</span>
-                    <span class="pill">Seuil : ${q.seuil_reussite}</span>
-                    <span class="pill ${!q.suffisant ? 'warn' : 'ok'}">${q.questions_disponibles} question(s) disponible(s)</span>
-                    ${q.repartition ? q.repartition.map(p => `<span class="pill ${p.disponible < p.nombre_questions ? 'warn' : ''}">${escapeHtml(p.categorie)} : ${p.disponible}/${p.nombre_questions}</span>`).join('') : ''}
-                    ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
-                    ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
-                    <span class="pill">${q.afficher_score ? 'Score affiché' : 'Score masqué'}</span>
-                    ${q.ouverture_debut || q.ouverture_fin ? `<span class="pill">Ouvert ${q.ouverture_debut ? 'du ' + q.ouverture_debut.slice(0, 16).replace('T', ' ') : ''}${q.ouverture_fin ? ' au ' + q.ouverture_fin.slice(0, 16).replace('T', ' ') : ''}</span>` : ''}
-                    <span class="pill ${q.actif ? 'ok' : ''}">${q.actif ? 'Actif' : 'Inactif'}</span>
-                </div>
-                <div class="row-actions" style="margin-top:8px;">
-                    <button type="button" class="secondary edit-qz-btn" data-id="${q.id}">Modifier</button>
-                    <button type="button" class="danger delete-qz-btn" data-id="${q.id}">Supprimer</button>
-                </div>
-            </div>
-        `).join('');
-
-        grid.querySelectorAll('.edit-qz-btn').forEach(btn => btn.addEventListener('click', () => openQuizModal(btn.dataset.id)));
-        grid.querySelectorAll('.delete-qz-btn').forEach(btn => btn.addEventListener('click', () => deleteQuiz(btn.dataset.id)));
+        vm.quizzes = await res.json();
+        vm.msg.quizzes = vm.quizzes.length ? '' : "Aucun questionnaire. Créez-en un pour permettre aux candidats de passer l'évaluation.";
     } catch (err) {
-        msg.textContent = 'Erreur de chargement des questionnaires';
+        vm.msg.quizzes = 'Erreur de chargement des questionnaires';
     }
 }
+
+// ---------- Rendu : grille des questionnaires ----------
+qaWatchEffect(() => {
+    const grid = document.getElementById('quizzes-grid');
+    document.getElementById('quizzes-msg').textContent = vm.msg.quizzes;
+
+    if (!vm.quizzes.length) {
+        grid.innerHTML = '';
+        return;
+    }
+
+    grid.innerHTML = vm.quizzes.map(q => `
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <h2>${escapeHtml(q.nom)}</h2>
+                <span class="pill ${q.type === 'examen' ? 'warn' : 'ok'}">${q.type === 'examen' ? 'Examen' : 'Entraînement'}</span>
+            </div>
+            <p>${escapeHtml(q.description || '')}</p>
+            <div class="meta">
+                <span class="pill">${q.nombre_questions} question(s)</span>
+                <span class="pill">Note sur ${q.note_max}</span>
+                <span class="pill">Seuil : ${q.seuil_reussite}</span>
+                <span class="pill ${!q.suffisant ? 'warn' : 'ok'}">${q.questions_disponibles} question(s) disponible(s)</span>
+                ${q.repartition ? q.repartition.map(p => `<span class="pill ${p.disponible < p.nombre_questions ? 'warn' : ''}">${escapeHtml(p.categorie)} : ${p.disponible}/${p.nombre_questions}</span>`).join('') : ''}
+                ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
+                ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
+                <span class="pill">${q.afficher_score ? 'Score affiché' : 'Score masqué'}</span>
+                ${q.ouverture_debut || q.ouverture_fin ? `<span class="pill">Ouvert ${q.ouverture_debut ? 'du ' + q.ouverture_debut.slice(0, 16).replace('T', ' ') : ''}${q.ouverture_fin ? ' au ' + q.ouverture_fin.slice(0, 16).replace('T', ' ') : ''}</span>` : ''}
+                <span class="pill ${q.actif ? 'ok' : ''}">${q.actif ? 'Actif' : 'Inactif'}</span>
+            </div>
+            <div class="row-actions" style="margin-top:8px;">
+                <button type="button" class="secondary edit-qz-btn" data-id="${q.id}">Modifier</button>
+                <button type="button" class="danger delete-qz-btn" data-id="${q.id}">Supprimer</button>
+            </div>
+        </div>
+    `).join('');
+
+    grid.querySelectorAll('.edit-qz-btn').forEach(btn => btn.addEventListener('click', () => openQuizModal(btn.dataset.id)));
+    grid.querySelectorAll('.delete-qz-btn').forEach(btn => btn.addEventListener('click', () => deleteQuiz(btn.dataset.id)));
+});
 
 const quizModal = document.getElementById('quiz-modal-overlay');
 const quizForm = document.getElementById('quiz-form');
@@ -449,7 +487,7 @@ function openQuizModal(id) {
     repartitionToggle.checked = false;
 
     if (id) {
-        const q = quizzes.find(x => String(x.id) === String(id));
+        const q = vm.quizzes.find(x => String(x.id) === String(id));
         if (q) {
             document.getElementById('quiz-modal-title').textContent = 'Modifier le questionnaire';
             document.getElementById('qz-id').value = q.id;
@@ -551,7 +589,7 @@ async function deleteQuiz(id) {
         const data = await res.json();
         if (data.success) await loadQuizzes();
     } catch (err) {
-        document.getElementById('quizzes-msg').textContent = 'Erreur de connexion au serveur';
+        vm.msg.quizzes = 'Erreur de connexion au serveur';
     }
 }
 
@@ -563,85 +601,95 @@ const STATUT_LABELS = {
 };
 
 async function loadAttempts() {
-    const tbody = document.getElementById('attempts-tbody');
     try {
         const res = await fetch('../api/quizzes.php?action=attempts');
-        const attempts = await res.json();
-
-        if (!attempts.length) {
-            tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = attempts.map(a => {
-            let noteCell = '—';
-            let resultCell = '—';
-            if (!a.afficher_score) {
-                noteCell = '<span class="pill">Masqué au candidat</span>';
-            } else if (a.score !== null) {
-                noteCell = `${a.score} / ${a.note_max}`;
-                resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
-            }
-            return `
-            <tr>
-                <td>${escapeHtml(a.quiz_nom)}</td>
-                <td><span class="pill ${a.quiz_type === 'examen' ? 'warn' : 'ok'}">${a.quiz_type === 'examen' ? 'Examen' : 'Entraînement'}</span></td>
-                <td>${escapeHtml(a.candidat)}</td>
-                <td>${STATUT_LABELS[a.statut] || a.statut}</td>
-                <td>${noteCell}</td>
-                <td>${resultCell}</td>
-                <td>${escapeHtml(a.started_at)}</td>
-                <td>${escapeHtml(a.completed_at || '—')}</td>
-            </tr>
-        `;
-        }).join('');
+        vm.attempts = await res.json();
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erreur de chargement des résultats</td></tr>`;
+        vm.msg.attempts = 'Erreur de chargement des résultats';
     }
 }
 
+// ---------- Rendu : tableau des résultats ----------
+qaWatchEffect(() => {
+    const tbody = document.getElementById('attempts-tbody');
+    if (vm.msg.attempts) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
+        return;
+    }
+    if (!vm.attempts.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = vm.attempts.map(a => {
+        let noteCell = '—';
+        let resultCell = '—';
+        if (!a.afficher_score) {
+            noteCell = '<span class="pill">Masqué au candidat</span>';
+        } else if (a.score !== null) {
+            noteCell = `${a.score} / ${a.note_max}`;
+            resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
+        }
+        return `
+        <tr>
+            <td>${escapeHtml(a.quiz_nom)}</td>
+            <td><span class="pill ${a.quiz_type === 'examen' ? 'warn' : 'ok'}">${a.quiz_type === 'examen' ? 'Examen' : 'Entraînement'}</span></td>
+            <td>${escapeHtml(a.candidat)}</td>
+            <td>${STATUT_LABELS[a.statut] || a.statut}</td>
+            <td>${noteCell}</td>
+            <td>${resultCell}</td>
+            <td>${escapeHtml(a.started_at)}</td>
+            <td>${escapeHtml(a.completed_at || '—')}</td>
+        </tr>
+    `;
+    }).join('');
+});
+
 // ================= TUILES (DASHBOARD) =================
-let tiles = [];
 const TILE_TYPE_LABELS = { questionnaire: 'Questionnaires (module intégré)', lien: 'Lien' };
 
 async function loadTilesAdmin() {
-    const grid = document.getElementById('tiles-admin-grid');
-    const msg = document.getElementById('tiles-admin-msg');
     try {
         const res = await fetch('../api/tiles.php?action=list_admin');
-        tiles = await res.json();
-
-        if (!tiles.length) {
-            grid.innerHTML = '';
-            msg.textContent = 'Aucune tuile configurée.';
-            return;
-        }
-        msg.textContent = '';
-        grid.innerHTML = tiles.map(t => `
-            <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                    <h2>${escapeHtml(t.nom)}</h2>
-                    <span class="pill">${TILE_TYPE_LABELS[t.type] || t.type}</span>
-                </div>
-                <p>${escapeHtml(t.description || '')}</p>
-                <div class="meta">
-                    <span class="pill">Ordre : ${t.ordre}</span>
-                    ${t.admin_uniquement ? '<span class="pill warn">Réservée admin</span>' : ''}
-                    <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
-                </div>
-                <div class="row-actions" style="margin-top:8px;">
-                    <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
-                    <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
-                </div>
-            </div>
-        `).join('');
-
-        grid.querySelectorAll('.edit-tile-btn').forEach(btn => btn.addEventListener('click', () => openTileModal(btn.dataset.id)));
-        grid.querySelectorAll('.delete-tile-btn').forEach(btn => btn.addEventListener('click', () => deleteTile(btn.dataset.id)));
+        vm.tiles = await res.json();
+        vm.msg.tiles = vm.tiles.length ? '' : 'Aucune tuile configurée.';
     } catch (err) {
-        msg.textContent = 'Erreur de chargement des tuiles';
+        vm.msg.tiles = 'Erreur de chargement des tuiles';
     }
 }
+
+// ---------- Rendu : grille des tuiles ----------
+qaWatchEffect(() => {
+    const grid = document.getElementById('tiles-admin-grid');
+    document.getElementById('tiles-admin-msg').textContent = vm.msg.tiles;
+
+    if (!vm.tiles.length) {
+        grid.innerHTML = '';
+        return;
+    }
+
+    grid.innerHTML = vm.tiles.map(t => `
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <h2>${escapeHtml(t.nom)}</h2>
+                <span class="pill">${TILE_TYPE_LABELS[t.type] || t.type}</span>
+            </div>
+            <p>${escapeHtml(t.description || '')}</p>
+            <div class="meta">
+                <span class="pill">Ordre : ${t.ordre}</span>
+                ${t.admin_uniquement ? '<span class="pill warn">Réservée admin</span>' : ''}
+                <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
+            </div>
+            <div class="row-actions" style="margin-top:8px;">
+                <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
+                <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
+            </div>
+        </div>
+    `).join('');
+
+    grid.querySelectorAll('.edit-tile-btn').forEach(btn => btn.addEventListener('click', () => openTileModal(btn.dataset.id)));
+    grid.querySelectorAll('.delete-tile-btn').forEach(btn => btn.addEventListener('click', () => deleteTile(btn.dataset.id)));
+});
 
 const tileModal = document.getElementById('tile-modal-overlay');
 const tileForm = document.getElementById('tile-form');
@@ -665,7 +713,7 @@ function openTileModal(id) {
     document.getElementById('tile-modal-title').textContent = 'Nouvelle tuile';
 
     if (id) {
-        const t = tiles.find(x => String(x.id) === String(id));
+        const t = vm.tiles.find(x => String(x.id) === String(id));
         if (t) {
             document.getElementById('tile-modal-title').textContent = 'Modifier la tuile';
             document.getElementById('tile-id').value = t.id;
@@ -737,43 +785,45 @@ async function deleteTile(id) {
         const data = await res.json();
         if (data.success) await loadTilesAdmin();
     } catch (err) {
-        document.getElementById('tiles-admin-msg').textContent = 'Erreur de connexion au serveur';
+        vm.msg.tiles = 'Erreur de connexion au serveur';
     }
 }
 
 // ================= UTILISATEURS =================
-let users = [];
-
 async function loadUsers() {
-    const tbody = document.getElementById('users-tbody');
     try {
         const res = await fetch('../api/users.php?action=list');
-        users = await res.json();
-
-        if (!users.length) {
-            tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-secondary);">Aucun utilisateur.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = users.map(u => `
-            <tr>
-                <td>${escapeHtml(u.username)}</td>
-                <td><span class="pill ${u.role === 'admin' ? 'warn' : ''}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
-                <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
-                <td>${escapeHtml(u.created_at)}</td>
-                <td class="row-actions">
-                    <button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button>
-                    <button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>
-                </td>
-            </tr>
-        `).join('');
-
-        tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
-        tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
+        vm.users = await res.json();
+        vm.msg.users = vm.users.length ? '' : 'Aucun utilisateur.';
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);">Erreur de chargement des utilisateurs</td></tr>`;
+        vm.msg.users = 'Erreur de chargement des utilisateurs';
     }
 }
+
+// ---------- Rendu : tableau des utilisateurs ----------
+qaWatchEffect(() => {
+    const tbody = document.getElementById('users-tbody');
+    if (!vm.users.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-secondary);">${escapeHtml(vm.msg.users || 'Aucun utilisateur.')}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = vm.users.map(u => `
+        <tr>
+            <td>${escapeHtml(u.username)}</td>
+            <td><span class="pill ${u.role === 'admin' ? 'warn' : ''}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
+            <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
+            <td>${escapeHtml(u.created_at)}</td>
+            <td class="row-actions">
+                <button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button>
+                <button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>
+            </td>
+        </tr>
+    `).join('');
+
+    tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
+    tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
+});
 
 const userModal = document.getElementById('user-modal-overlay');
 const userForm = document.getElementById('user-form');
@@ -790,7 +840,7 @@ function openUserModal(id) {
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
 
     if (id) {
-        const u = users.find(x => String(x.id) === String(id));
+        const u = vm.users.find(x => String(x.id) === String(id));
         if (u) {
             document.getElementById('user-modal-title').textContent = "Modifier l'utilisateur";
             document.getElementById('user-id').value = u.id;
@@ -853,9 +903,9 @@ async function deleteUser(id) {
         });
         const data = await res.json();
         if (data.success) await loadUsers();
-        else document.getElementById('users-msg').textContent = data.message || 'Erreur lors de la suppression';
+        else vm.msg.users = data.message || 'Erreur lors de la suppression';
     } catch (err) {
-        document.getElementById('users-msg').textContent = 'Erreur de connexion au serveur';
+        vm.msg.users = 'Erreur de connexion au serveur';
     }
 }
 
@@ -872,36 +922,53 @@ async function loadMaintenance() {
         const res = await fetch('../api/maintenance.php?action=state');
         const data = await res.json();
         if (!data.success) return;
-
-        document.getElementById('maint-version-pill').textContent = 'Version : ' + data.app_version;
-        document.getElementById('maint-backup-count-pill').textContent = data.backup_count + ' sauvegarde(s)';
-
-        const githubCard = document.getElementById('maint-github-card');
-        githubCard.classList.toggle('hidden', !data.github_configured);
-
-        const tbody = document.getElementById('maint-backups-tbody');
-        if (!data.backups.length) {
-            tbody.innerHTML = `<tr><td colspan="4" style="color:var(--text-secondary);">Aucune sauvegarde disponible pour le moment.</td></tr>`;
-        } else {
-            tbody.innerHTML = data.backups.map(b => `
-                <tr>
-                    <td>${escapeHtml(b.filename)}</td>
-                    <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
-                    <td>${formatBytes(b.size_bytes)}</td>
-                    <td class="row-actions">
-                        <button type="button" class="danger restore-backup-btn" data-filename="${escapeHtml(b.filename)}">Restaurer</button>
-                        <button type="button" class="secondary delete-backup-btn" data-filename="${escapeHtml(b.filename)}">Supprimer</button>
-                    </td>
-                </tr>
-            `).join('');
-            tbody.querySelectorAll('.restore-backup-btn').forEach(btn => btn.addEventListener('click', () => restoreBackup(btn.dataset.filename)));
-            tbody.querySelectorAll('.delete-backup-btn').forEach(btn => btn.addEventListener('click', () => deleteBackup(btn.dataset.filename)));
-        }
+        vm.maint.version = data.app_version;
+        vm.maint.backupCount = data.backup_count;
+        vm.maint.backups = data.backups;
+        vm.maint.githubConfigured = data.github_configured;
+        vm.msg.maintBackups = '';
     } catch (err) {
-        document.getElementById('maint-backups-msg').textContent = 'Erreur de chargement';
+        vm.msg.maintBackups = 'Erreur de chargement';
     }
     loadMaintenanceLog();
 }
+
+// ---------- Rendu : version, sauvegardes ----------
+qaWatchEffect(() => {
+    document.getElementById('maint-version-pill').textContent = 'Version : ' + (vm.maint.version || '—');
+    document.getElementById('maint-backup-count-pill').textContent = vm.maint.backupCount + ' sauvegarde(s)';
+    document.getElementById('maint-github-card').classList.toggle('hidden', !vm.maint.githubConfigured);
+
+    const tbody = document.getElementById('maint-backups-tbody');
+    if (!vm.maint.backups.length) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:var(--text-secondary);">Aucune sauvegarde disponible pour le moment.</td></tr>`;
+    } else {
+        tbody.innerHTML = vm.maint.backups.map(b => `
+            <tr>
+                <td>${escapeHtml(b.filename)}</td>
+                <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
+                <td>${formatBytes(b.size_bytes)}</td>
+                <td class="row-actions">
+                    <button type="button" class="danger restore-backup-btn" data-filename="${escapeHtml(b.filename)}">Restaurer</button>
+                    <button type="button" class="secondary delete-backup-btn" data-filename="${escapeHtml(b.filename)}">Supprimer</button>
+                </td>
+            </tr>
+        `).join('');
+        tbody.querySelectorAll('.restore-backup-btn').forEach(btn => btn.addEventListener('click', () => restoreBackup(btn.dataset.filename)));
+        tbody.querySelectorAll('.delete-backup-btn').forEach(btn => btn.addEventListener('click', () => deleteBackup(btn.dataset.filename)));
+    }
+    document.getElementById('maint-backups-msg').textContent = vm.msg.maintBackups;
+});
+
+// ---------- Rendu : journal de maintenance ----------
+qaWatchEffect(() => {
+    const tbody = document.getElementById('maint-log-tbody');
+    if (!vm.maint.logLines.length) {
+        tbody.innerHTML = `<tr><td style="color:var(--text-secondary);">Aucune entrée pour le moment (mises à jour, sauvegardes et restaurations y sont journalisées).</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = vm.maint.logLines.map(line => `<tr><td style="font-family:monospace;font-size:0.8rem;white-space:pre-wrap;">${escapeHtml(line)}</td></tr>`).join('');
+});
 
 document.getElementById('maint-github-check-btn').addEventListener('click', async () => {
     const btn = document.getElementById('maint-github-check-btn');
@@ -997,8 +1064,6 @@ document.getElementById('maint-update-btn').addEventListener('click', async () =
 
 async function restoreBackup(filename) {
     if (!confirm(`Restaurer la sauvegarde ${filename} ? Les fichiers actuels seront remplacés (hors chemins protégés).`)) return;
-    const msgEl = document.getElementById('maint-backups-msg');
-    msgEl.textContent = '';
     try {
         const res = await fetch('../api/maintenance.php?action=restore-backup', {
             method: 'POST',
@@ -1007,23 +1072,18 @@ async function restoreBackup(filename) {
         });
         const data = await res.json();
         if (data.success) {
-            msgEl.className = 'msg success';
-            msgEl.textContent = `Sauvegarde restaurée : ${data.files_copied} fichier(s).`;
             await loadMaintenance();
+            vm.msg.maintBackups = `Sauvegarde restaurée : ${data.files_copied} fichier(s).`;
         } else {
-            msgEl.className = 'msg error';
-            msgEl.textContent = data.message || 'Erreur lors de la restauration';
+            vm.msg.maintBackups = data.message || 'Erreur lors de la restauration';
         }
     } catch (err) {
-        msgEl.className = 'msg error';
-        msgEl.textContent = 'Erreur de connexion au serveur';
+        vm.msg.maintBackups = 'Erreur de connexion au serveur';
     }
 }
 
 async function deleteBackup(filename) {
     if (!confirm(`Supprimer définitivement la sauvegarde ${filename} ?`)) return;
-    const msgEl = document.getElementById('maint-backups-msg');
-    msgEl.textContent = '';
     try {
         const res = await fetch('../api/maintenance.php?action=delete-backup', {
             method: 'POST',
@@ -1032,25 +1092,19 @@ async function deleteBackup(filename) {
         });
         const data = await res.json();
         if (data.success) await loadMaintenance();
-        else { msgEl.className = 'msg error'; msgEl.textContent = data.message || 'Erreur lors de la suppression'; }
+        else vm.msg.maintBackups = data.message || 'Erreur lors de la suppression';
     } catch (err) {
-        msgEl.className = 'msg error';
-        msgEl.textContent = 'Erreur de connexion au serveur';
+        vm.msg.maintBackups = 'Erreur de connexion au serveur';
     }
 }
 
 async function loadMaintenanceLog() {
-    const tbody = document.getElementById('maint-log-tbody');
     try {
         const res = await fetch('../api/maintenance.php?action=log');
         const data = await res.json();
-        if (!data.success || !data.lines.length) {
-            tbody.innerHTML = `<tr><td style="color:var(--text-secondary);">Aucune entrée pour le moment (mises à jour, sauvegardes et restaurations y sont journalisées).</td></tr>`;
-            return;
-        }
-        tbody.innerHTML = data.lines.map(line => `<tr><td style="font-family:monospace;font-size:0.8rem;white-space:pre-wrap;">${escapeHtml(line)}</td></tr>`).join('');
+        vm.maint.logLines = (data.success && data.lines) ? data.lines : [];
     } catch (err) {
-        tbody.innerHTML = `<tr><td style="color:var(--danger);">Erreur de chargement du journal</td></tr>`;
+        vm.maint.logLines = [];
     }
 }
 

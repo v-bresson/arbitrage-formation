@@ -362,6 +362,7 @@
 
 <footer>&copy; <span id="year"></span> ArcheryOps Judging — Administration</footer>
 
+<script src="../assets/mvvm.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
