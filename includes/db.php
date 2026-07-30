@@ -118,6 +118,13 @@ function qa_schema_migrations() {
                 ['table' => 'users', 'column' => 'date_entree_formation', 'definition' => 'DATE NULL'],
             ],
         ],
+        [
+            'id' => 'tiles_scope_accueil_2026_07',
+            'description' => "Ajout du mode config sur le Dashboard (tuiles personnalisées distinctes de l'Espace candidat)",
+            'columns' => [
+                ['table' => 'tiles', 'column' => 'scope', 'definition' => "VARCHAR(20) NOT NULL DEFAULT 'candidat'"],
+            ],
+        ],
     ];
 }
 
@@ -396,14 +403,15 @@ function get_db() {
         admin_uniquement TINYINT(1) NOT NULL DEFAULT 0,
         ordre INT NOT NULL DEFAULT 0,
         actif TINYINT(1) NOT NULL DEFAULT 1,
+        scope VARCHAR(20) NOT NULL DEFAULT 'candidat',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     $tileCount = (int)$pdo->query('SELECT COUNT(*) c FROM tiles')->fetch()['c'];
     if ($tileCount === 0) {
-        $pdo->exec("INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif) VALUES
-            ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', NULL, 'target', 0, 1, 1),
-            ('Mes stages', 'Suivi de vos stages de formation.', 'lien', 'stages.php', 'clipboard', 0, 2, 1)");
+        $pdo->exec("INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif, scope) VALUES
+            ('Candidats arbitres', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', NULL, 'target', 0, 1, 1, 'candidat'),
+            ('Mes stages', 'Suivi de vos stages de formation.', 'lien', 'stages.php', 'clipboard', 0, 2, 1, 'candidat')");
     }
 
     // ---------------------------------------------------------------

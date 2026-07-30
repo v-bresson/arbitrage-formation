@@ -20,18 +20,25 @@ function qa_tile_row_out($row) {
         'admin_uniquement' => (bool)$row['admin_uniquement'],
         'ordre' => (int)$row['ordre'],
         'actif' => (bool)$row['actif'],
+        'scope' => $row['scope'] ?? 'candidat',
     ];
 }
 
-// Liste des tuiles visibles pour l'utilisateur connecté (dashboard).
-// Les tuiles réservées à l'admin sont filtrées pour les autres rôles.
+$requestedScope = $_GET['scope'] ?? $_POST['scope'] ?? 'candidat';
+$scope = in_array($requestedScope, ['candidat', 'accueil'], true) ? $requestedScope : 'candidat';
+
+// Liste des tuiles visibles pour l'utilisateur connecté (dashboard ou
+// Espace candidat, selon $scope). Les tuiles réservées à l'admin sont
+// filtrées pour les autres rôles.
 if ($action === 'list') {
     $role = $_SESSION['role'] ?? 'candidat';
     $isAdmin = qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role);
     if ($isAdmin) {
-        $stmt = $pdo->query('SELECT * FROM tiles WHERE actif=1 ORDER BY ordre, nom');
+        $stmt = $pdo->prepare('SELECT * FROM tiles WHERE actif=1 AND scope=? ORDER BY ordre, nom');
+        $stmt->execute([$scope]);
     } else {
-        $stmt = $pdo->query('SELECT * FROM tiles WHERE actif=1 AND admin_uniquement=0 ORDER BY ordre, nom');
+        $stmt = $pdo->prepare('SELECT * FROM tiles WHERE actif=1 AND admin_uniquement=0 AND scope=? ORDER BY ordre, nom');
+        $stmt->execute([$scope]);
     }
     echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
     exit;
@@ -41,7 +48,8 @@ if ($action === 'list') {
 // voir includes/permissions.php).
 if ($action === 'list_admin') {
     require_permission('tiles', 'read');
-    $stmt = $pdo->query('SELECT * FROM tiles ORDER BY ordre, nom');
+    $stmt = $pdo->prepare('SELECT * FROM tiles WHERE scope=? ORDER BY ordre, nom');
+    $stmt->execute([$scope]);
     echo json_encode(array_map('qa_tile_row_out', $stmt->fetchAll()));
     exit;
 }
@@ -58,6 +66,7 @@ if ($action === 'save') {
     $adminUniquement = !empty($body['admin_uniquement']) ? 1 : 0;
     $ordre = (int)($body['ordre'] ?? 0);
     $actif = !empty($body['actif']) ? 1 : 0;
+    $scope = in_array($body['scope'] ?? 'candidat', ['candidat', 'accueil'], true) ? $body['scope'] : 'candidat';
 
     if ($nom === '') {
         http_response_code(422);
@@ -71,11 +80,11 @@ if ($action === 'save') {
     }
 
     if ($id) {
-        $stmt = $pdo->prepare('UPDATE tiles SET nom=?, description=?, type=?, url=?, icone=?, admin_uniquement=?, ordre=?, actif=? WHERE id=?');
-        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $id]);
+        $stmt = $pdo->prepare('UPDATE tiles SET nom=?, description=?, type=?, url=?, icone=?, admin_uniquement=?, ordre=?, actif=?, scope=? WHERE id=?');
+        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope, $id]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif) VALUES (?,?,?,?,?,?,?,?)');
-        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif]);
+        $stmt = $pdo->prepare('INSERT INTO tiles (nom, description, type, url, icone, admin_uniquement, ordre, actif, scope) VALUES (?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$nom, $description, $type, $type === 'lien' ? $url : null, $icone, $adminUniquement, $ordre, $actif, $scope]);
         $id = $pdo->lastInsertId();
     }
 
