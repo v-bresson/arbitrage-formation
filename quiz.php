@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcheryOps Judging — Candidats arbitres</title>
+<title>ArcheryOps - Arbitrage — Candidats arbitres</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="has-fixed-header">
 
 <header class="site-header">
     <div class="site-header-row">
-        <div class="brand"><img src="assets/logo.png" alt="ArcheryOps Judging"></div>
+        <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
     </div>
 </header>
 <nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><a href="candidate.php">Espace candidat</a><span class="sep">/</span><span class="current">Candidats arbitres</span></div></nav>

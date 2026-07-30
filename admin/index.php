@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcheryOps Judging — Administration</title>
+<title>ArcheryOps - Arbitrage — Administration</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body class="has-fixed-header">
 
 <!-- ================= ACCES REFUSE ================= -->
 <div id="denied-screen" class="page hidden" style="padding-top:40px;">
-    <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"></div>
+    <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
     <div class="panel" style="align-items:center;text-align:center;">
         <p>Cet espace est réservé aux administrateurs.</p>
         <a href="../dashboard.php" class="btn" style="margin-top:10px;">Retour au dashboard</a>
@@ -21,7 +21,7 @@
 <div id="admin-screen" class="page wide hidden">
     <header class="site-header">
         <div class="site-header-row">
-            <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"></div>
+            <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
             <div style="display:flex;gap:14px;align-items:center;">
                 <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
                 <a href="../dashboard.php" class="secondary btn">Retour au site</a>
