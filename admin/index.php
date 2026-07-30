@@ -6,10 +6,10 @@
 <title>ArcheryOps Judging — Administration</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
-<body>
+<body class="has-fixed-header">
 
 <!-- ================= ACCES REFUSE ================= -->
-<div id="denied-screen" class="page hidden">
+<div id="denied-screen" class="page hidden" style="padding-top:40px;">
     <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"></div>
     <div class="panel" style="align-items:center;text-align:center;">
         <p>Cet espace est réservé aux administrateurs.</p>
@@ -19,16 +19,19 @@
 
 <!-- ================= DASHBOARD ADMIN ================= -->
 <div id="admin-screen" class="page wide hidden">
-    <div class="top-bar">
-        <div class="brand" style="text-align:left;margin-bottom:0;">
-            <img src="../assets/logo.png" alt="ArcheryOps Judging">
+    <header class="site-header">
+        <div class="site-header-row">
+            <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"></div>
+            <div style="display:flex;gap:14px;align-items:center;">
+                <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
+                <a href="../dashboard.php" class="secondary btn">Retour au site</a>
+                <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+            </div>
         </div>
-        <div style="display:flex;gap:14px;align-items:center;">
-            <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
-            <a href="../dashboard.php" class="secondary btn">Retour au site</a>
-            <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
-        </div>
-    </div>
+    </header>
+    <nav class="breadcrumb"><div class="breadcrumb-row" id="admin-breadcrumb"></div></nav>
+    <div class="header-spacer"></div>
+    <script src="../assets/header-fix.js"></script>
 
     <div class="admin-layout">
         <nav class="admin-sidebar">

@@ -8,6 +8,8 @@ Le JS de chaque page (`index.php`, `dashboard.php`, `quiz.php`, `admin/app.js`) 
 
 Chaque page définit un état réactif unique (le **ViewModel**) contenant les collections chargées depuis l'API et les messages d'état ; les fonctions `loadXxx()` se contentent d'assigner ce state (le **Model**, côté fetch), et la **vue** (fonctions de rendu passées à `qaWatchEffect`) se redessine seule — plus aucun appel manuel à un rendu après une mutation d'état. Volontairement laissés en dehors de cette réactivité, pour ne pas perdre le focus/curseur en cours de frappe : les champs des formulaires dans les modales (lus nativement via `getElementById` à la soumission), la liste de questions en cours de passage, et le minuteur (mis à jour chaque seconde de façon imperative).
 
+Sur `dashboard.php`, `quiz.php` et `admin/index.php`, le bandeau (logo + actions) et le fil d'ariane restent **fixes** en haut de la page pendant le défilement (`.site-header` / `.breadcrumb` en `position: fixed`). Comme leur hauteur varie (retour à la ligne selon la largeur d'écran ou la longueur du nom d'utilisateur), `assets/header-fix.js` mesure leur hauteur réelle au chargement et à chaque redimensionnement/changement de contenu, pour positionner le fil d'ariane juste en dessous et réserver l'espace correspondant (`.header-spacer`) — plutôt qu'une hauteur figée en CSS, source de chevauchement.
+
 ## Fonctionnalités
 
 - **Connexion** (`index.php`) : point d'entrée unique de l'application. Première visite = création du compte administrateur ; ensuite, écran de connexion classique (identifiant/mot de passe).
@@ -85,6 +87,7 @@ includes/xlsx_reader.php           Lecteur .xlsx minimaliste sans dépendance
 includes/uploads.php               Gestion des images jointes aux questions
 assets/style.css                   Charte graphique (reprise de serveur-home)
 assets/mvvm.js                      Mini-noyau MVVM maison (état réactif + rendu automatique)
+assets/header-fix.js                Mesure dynamique du bandeau/fil d'ariane fixes (voir plus bas)
 uploads/questions/                 Images jointes aux questions (non versionnées)
 VERSION.txt                        Version du code déployé, affichée dans l'onglet Mise à jour système
 backups/                           Sauvegardes de code + journal de maintenance (non versionnés)

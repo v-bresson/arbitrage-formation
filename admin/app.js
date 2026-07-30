@@ -83,6 +83,7 @@ async function checkSession() {
         }
         document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
         showScreen('admin');
+        if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
         initAdmin();
     } catch (err) {
         window.location.href = '../index.php';
@@ -100,23 +101,54 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     window.location.href = '../index.php';
 });
 
-// ---------- Menu latéral (Dashboard / Questionnaire / Comptes utilisateurs / Administration) ----------
+// ---------- Fil d'ariane (fixe, sous le bandeau) ----------
+const BREADCRUMB_LABELS = {
+    overview: { group: null, label: 'Dashboard' },
+    questions: { group: 'Candidats arbitres', label: 'Banque de questions' },
+    quizzes: { group: 'Candidats arbitres', label: 'Questionnaires' },
+    attempts: { group: 'Candidats arbitres', label: 'Résultats' },
+    users: { group: null, label: 'Comptes utilisateurs' },
+    tiles: { group: 'Administration', label: 'Tuiles' },
+    maintenance: { group: 'Administration', label: 'Mise à jour système' },
+};
+
+function updateBreadcrumb(tab) {
+    const info = BREADCRUMB_LABELS[tab] || BREADCRUMB_LABELS.overview;
+    let html = '<a href="../dashboard.php">Accueil</a><span class="sep">/</span>';
+    if (tab === 'overview') {
+        html += '<span class="current">Espace admin</span>';
+    } else {
+        html += '<a href="#" id="breadcrumb-admin-root">Espace admin</a><span class="sep">/</span>';
+        if (info.group) html += `<span>${info.group}</span><span class="sep">/</span>`;
+        html += `<span class="current">${info.label}</span>`;
+    }
+    document.getElementById('admin-breadcrumb').innerHTML = html;
+    const rootLink = document.getElementById('breadcrumb-admin-root');
+    if (rootLink) rootLink.addEventListener('click', (e) => { e.preventDefault(); selectSidebarTab('overview'); });
+}
+
+// ---------- Menu latéral (Dashboard / Candidats arbitres / Comptes utilisateurs / Administration) ----------
+function selectSidebarTab(tab) {
+    document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.sidebar-link[data-tab="${tab}"]`);
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-' + tab).classList.remove('hidden');
+
+    const parentGroup = btn && btn.closest('.sidebar-group');
+    if (parentGroup) parentGroup.classList.add('open');
+
+    updateBreadcrumb(tab);
+
+    if (tab === 'quizzes') loadQuizzes();
+    if (tab === 'attempts') loadAttempts();
+    if (tab === 'tiles') loadTilesAdmin();
+    if (tab === 'users') loadUsers();
+    if (tab === 'maintenance') loadMaintenance();
+}
+
 document.querySelectorAll('.sidebar-link[data-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-        document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
-
-        const parentGroup = btn.closest('.sidebar-group');
-        if (parentGroup) parentGroup.classList.add('open');
-
-        if (btn.dataset.tab === 'quizzes') loadQuizzes();
-        if (btn.dataset.tab === 'attempts') loadAttempts();
-        if (btn.dataset.tab === 'tiles') loadTilesAdmin();
-        if (btn.dataset.tab === 'users') loadUsers();
-        if (btn.dataset.tab === 'maintenance') loadMaintenance();
-    });
+    btn.addEventListener('click', () => selectSidebarTab(btn.dataset.tab));
 });
 
 document.querySelectorAll('.sidebar-group-toggle').forEach(toggle => {
@@ -137,6 +169,7 @@ qaWatchEffect(() => {
 });
 
 function initAdmin() {
+    updateBreadcrumb('overview');
     loadQuestions();
     loadQuizzes();
     loadAttempts();
@@ -990,14 +1023,7 @@ qaWatchEffect(() => {
         document.getElementById('overview-db-migration-text').textContent = pending.map(m => m.description).join(' · ');
     }
 });
-document.getElementById('overview-db-migration-btn').addEventListener('click', () => {
-    document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-    document.getElementById('tab-maintenance').classList.remove('hidden');
-    const maintLink = document.querySelector('.sidebar-link[data-tab="maintenance"]');
-    maintLink.classList.add('active');
-    maintLink.closest('.sidebar-group').classList.add('open');
-});
+document.getElementById('overview-db-migration-btn').addEventListener('click', () => selectSidebarTab('maintenance'));
 
 // ---------- Rendu : mise à jour de la base de données ----------
 qaWatchEffect(() => {

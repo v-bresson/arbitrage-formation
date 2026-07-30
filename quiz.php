@@ -6,16 +6,19 @@
 <title>ArcheryOps Judging — Candidats arbitres</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="has-fixed-header">
 
-<div class="brand">
-    <img src="assets/logo.png" alt="ArcheryOps Judging">
-    <p class="subtitle">Validation de la formation d'arbitre assistant</p>
-</div>
+<header class="site-header">
+    <div class="site-header-row">
+        <div class="brand"><img src="assets/logo.png" alt="ArcheryOps Judging"></div>
+    </div>
+</header>
+<nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><span class="current">Candidats arbitres</span></div></nav>
+<div class="header-spacer"></div>
+<script src="assets/header-fix.js"></script>
 
 <!-- ================= LISTE DES QUESTIONNAIRES ================= -->
 <div id="list-screen" class="page wide hidden">
-    <p style="margin-bottom:16px;"><a href="dashboard.php">&larr; Retour au dashboard</a></p>
     <div class="grid" id="quiz-grid"></div>
     <p class="msg" id="list-msg" style="text-align:center;margin-top:20px;"></p>
 </div>

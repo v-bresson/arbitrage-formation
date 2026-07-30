@@ -74,7 +74,7 @@ a { color: var(--accent); }
 .page {
     width: 100%;
     max-width: 480px;
-    margin: auto;
+    margin: 0 auto;
     text-align: center;
     animation: fadeUp 0.6s ease;
 }
@@ -157,17 +157,76 @@ button.danger { background: var(--danger); }
 .msg.error { color: var(--danger); }
 .msg.success { color: var(--success); }
 
-/* ---------- Header / nav ---------- */
-.top-bar {
-    width: 100%;
+/* ---------- Header / nav fixes ---------- */
+:root {
+    --header-h: 76px;
+    --breadcrumb-h: 38px;
+}
+
+@media (max-width: 600px) {
+    :root {
+        --header-h: 100px;
+        --breadcrumb-h: 34px;
+    }
+}
+
+body.has-fixed-header { padding-top: 0; }
+
+.site-header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+}
+
+.site-header-row {
     max-width: 1100px;
+    margin: 0 auto;
+    padding: 12px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
     flex-wrap: wrap;
-    row-gap: 10px;
-    gap: 16px;
+    gap: 12px;
+    min-height: calc(var(--header-h) - 24px);
+}
+
+.site-header .brand { width: auto; flex-shrink: 0; margin-bottom: 0; }
+.site-header .brand img { height: 56px; }
+
+@media (max-width: 600px) {
+    .site-header .brand img { height: 44px; }
+}
+
+.breadcrumb {
+    position: fixed;
+    top: var(--header-h);
+    left: 0; right: 0;
+    z-index: 190;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+
+.breadcrumb-row {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 9px 20px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+.breadcrumb a:hover { color: var(--accent); }
+.breadcrumb .sep { margin: 0 6px; opacity: 0.45; }
+.breadcrumb .current { color: var(--text-primary); font-weight: 600; }
+
+.header-spacer {
+    height: calc(var(--header-h) + var(--breadcrumb-h));
+    width: 100%;
+    flex-shrink: 0;
 }
 
 /* ---------- Admin : menu latéral ---------- */

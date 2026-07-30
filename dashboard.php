@@ -6,17 +6,20 @@
 <title>ArcheryOps Judging — Dashboard</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="has-fixed-header">
 
-<div class="top-bar">
-    <div class="brand" style="margin-bottom:0;">
-        <img src="assets/logo.png" alt="ArcheryOps Judging">
+<header class="site-header">
+    <div class="site-header-row">
+        <div class="brand"><img src="assets/logo.png" alt="ArcheryOps Judging"></div>
+        <div style="display:flex;gap:14px;align-items:center;">
+            <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
+            <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+        </div>
     </div>
-    <div style="display:flex;gap:14px;align-items:center;">
-        <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
-        <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
-    </div>
-</div>
+</header>
+<nav class="breadcrumb"><div class="breadcrumb-row"><span class="current">Dashboard</span></div></nav>
+<div class="header-spacer"></div>
+<script src="assets/header-fix.js"></script>
 
 <div class="page wide">
     <div class="grid" id="tiles-grid"></div>
