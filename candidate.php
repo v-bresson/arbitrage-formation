@@ -60,7 +60,7 @@
     <!-- ---------- VUE FORMATEUR : MES CANDIDATS ---------- -->
     <div id="formateur-view" class="hidden">
         <h2 style="margin-bottom:16px;">Mes candidats</h2>
-        <div class="field" style="max-width:420px;margin-bottom:20px;">
+        <div class="field" style="max-width:420px;margin:0 auto 20px;">
             <label>Rechercher (identifiant, nom, prénom, club)</label>
             <input type="text" id="candidats-search-input" placeholder="Rechercher un candidat...">
         </div>
