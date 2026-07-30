@@ -53,6 +53,7 @@ a { color: var(--accent); }
 
 .brand img { height: 140px; width: auto; }
 
+.top-bar .brand { width: auto; margin-bottom: 0; flex-shrink: 0; }
 .top-bar .brand img { height: 84px; }
 
 .brand.center {
@@ -165,36 +166,8 @@ button.danger { background: var(--danger); }
     align-items: center;
     margin-bottom: 40px;
     flex-wrap: wrap;
+    row-gap: 10px;
     gap: 16px;
-}
-
-.tabs {
-    display: flex;
-    gap: 8px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 6px;
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-.tabs button {
-    background: transparent;
-    color: var(--text-secondary);
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.tabs button.active { background: var(--accent); color: white; }
-
-@media (max-width: 700px) {
-    .top-bar { justify-content: center; }
-    .top-bar > div { width: 100%; justify-content: center; }
 }
 
 /* ---------- Admin : menu latéral ---------- */
