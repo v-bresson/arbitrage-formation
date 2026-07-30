@@ -51,6 +51,18 @@ const TAB_SECTIONS = {
     maintenance: 'maintenance',
 };
 
+const TAB_LABELS = {
+    overview: 'Dashboard',
+    questions: 'Banque de questions',
+    quizzes: 'Questionnaires',
+    attempts: 'Résultats',
+    users: 'Comptes utilisateurs',
+    candidats: 'Candidats',
+    formateurs: 'Formateur',
+    roles: 'Rôles',
+    maintenance: 'Mise à jour système',
+};
+
 function canRead(section) {
     return vm.role === 'super_admin' || (vm.permissions[section] && vm.permissions[section] !== 'none');
 }
@@ -175,6 +187,8 @@ function selectSidebarTab(tab) {
 
     const parentGroup = btn && btn.closest('.sidebar-group');
     if (parentGroup) parentGroup.classList.add('open');
+
+    document.getElementById('admin-breadcrumb-current').textContent = TAB_LABELS[tab] || 'Administration';
 
     if (tab === 'quizzes') loadQuizzes();
     if (tab === 'attempts') loadAttempts();
