@@ -1,6 +1,27 @@
 <?php
-// Connexion PDO SQLite + création du schéma si besoin.
-// Base stockée dans data/quizz.sqlite (non versionnée, voir .gitignore).
+// Connexion PDO MariaDB/MySQL + création du schéma si besoin.
+//
+// Les identifiants de connexion sont lus, par ordre de priorité :
+//   1. Variables d'environnement DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+//   2. Fichier includes/db-config.php (non versionné, voir .gitignore) —
+//      copier includes/db-config.sample.php et renseigner ses identifiants.
+
+function qa_db_config() {
+    $config = [
+        'host' => getenv('DB_HOST') ?: '127.0.0.1',
+        'port' => getenv('DB_PORT') ?: '3306',
+        'database' => getenv('DB_NAME') ?: 'archeryops_judging',
+        'username' => getenv('DB_USER') ?: 'archeryops',
+        'password' => getenv('DB_PASS') ?: '',
+    ];
+
+    $configFile = __DIR__ . '/db-config.php';
+    if (file_exists($configFile)) {
+        $config = array_merge($config, require $configFile);
+    }
+
+    return $config;
+}
 
 function get_db() {
     static $pdo = null;
@@ -8,16 +29,24 @@ function get_db() {
 
     date_default_timezone_set('Europe/Paris');
 
-    $dataDir = __DIR__ . '/../data';
-    if (!is_dir($dataDir)) {
-        mkdir($dataDir, 0700, true);
-    }
-    $dbFile = $dataDir . '/quizz.sqlite';
+    $config = qa_db_config();
+    $dsn = "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']};charset=utf8mb4";
 
-    $pdo = new PDO('sqlite:' . $dbFile);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec('PRAGMA foreign_keys = ON');
+    try {
+        $pdo = new PDO($dsn, $config['username'], $config['password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'message' => "Connexion à la base MariaDB impossible. Vérifiez includes/db-config.php (ou les variables d'environnement DB_HOST/DB_NAME/DB_USER/DB_PASS) et que la base existe. Détail : " . $e->getMessage(),
+        ]);
+        exit;
+    }
 
     // ---------------------------------------------------------------
     // Questions : QCM à réponse unique, QCM à réponses multiples, ou
@@ -26,21 +55,23 @@ function get_db() {
     // des questionnaires d'entraînement).
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS questions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        categorie TEXT NOT NULL DEFAULT 'Général',
-        type TEXT NOT NULL DEFAULT 'qcm_unique',
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        categorie VARCHAR(191) NOT NULL DEFAULT 'Général',
+        type VARCHAR(20) NOT NULL DEFAULT 'qcm_unique',
         enonce TEXT NOT NULL,
-        image TEXT,
-        option_a TEXT,
-        option_b TEXT,
-        option_c TEXT,
-        option_d TEXT,
-        bonne_reponse TEXT,
-        points INTEGER NOT NULL DEFAULT 1,
-        examen_uniquement INTEGER NOT NULL DEFAULT 0,
-        actif INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )");
+        image VARCHAR(255) NULL,
+        option_a TEXT NULL,
+        option_b TEXT NULL,
+        option_c TEXT NULL,
+        option_d TEXT NULL,
+        bonne_reponse VARCHAR(50) NULL,
+        points INT NOT NULL DEFAULT 1,
+        examen_uniquement TINYINT(1) NOT NULL DEFAULT 0,
+        actif TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_questions_categorie (categorie),
+        INDEX idx_questions_actif (actif)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------
     // Questionnaires : entraînement (piochent uniquement dans les
@@ -52,23 +83,23 @@ function get_db() {
     // et pioche un nombre de questions donné par thématique.
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS quizzes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT NOT NULL,
-        description TEXT,
-        type TEXT NOT NULL DEFAULT 'entrainement',
-        categorie_filtre TEXT,
-        nombre_questions INTEGER NOT NULL DEFAULT 10,
-        repartition TEXT,
-        note_max INTEGER NOT NULL DEFAULT 20,
-        seuil_reussite INTEGER NOT NULL DEFAULT 10,
-        duree_minutes INTEGER,
-        ouverture_debut TEXT,
-        ouverture_fin TEXT,
-        tentatives_max INTEGER,
-        afficher_score INTEGER NOT NULL DEFAULT 1,
-        actif INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )");
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        nom VARCHAR(255) NOT NULL,
+        description TEXT NULL,
+        type VARCHAR(20) NOT NULL DEFAULT 'entrainement',
+        categorie_filtre VARCHAR(191) NULL,
+        nombre_questions INT NOT NULL DEFAULT 10,
+        repartition TEXT NULL,
+        note_max DECIMAL(6,2) NOT NULL DEFAULT 20,
+        seuil_reussite DECIMAL(6,2) NOT NULL DEFAULT 10,
+        duree_minutes INT NULL,
+        ouverture_debut DATETIME NULL,
+        ouverture_fin DATETIME NULL,
+        tentatives_max INT NULL,
+        afficher_score TINYINT(1) NOT NULL DEFAULT 1,
+        actif TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------
     // Tentatives : archive de tous les passages (entraînement et
@@ -80,24 +111,26 @@ function get_db() {
     // rester consultable même si le questionnaire est supprimé.
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS tentatives (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        quiz_id INTEGER REFERENCES quizzes(id) ON DELETE SET NULL,
-        quiz_nom TEXT NOT NULL,
-        quiz_type TEXT NOT NULL DEFAULT 'entrainement',
-        candidat TEXT NOT NULL,
-        statut TEXT NOT NULL DEFAULT 'en_cours',
-        questions_json TEXT NOT NULL,
-        reponses_json TEXT,
-        score REAL,
-        note_max REAL NOT NULL,
-        seuil_reussite REAL NOT NULL DEFAULT 0,
-        duree_minutes INTEGER,
-        reussi INTEGER,
-        afficher_score INTEGER NOT NULL DEFAULT 1,
-        started_at TEXT NOT NULL DEFAULT (datetime('now')),
-        completed_at TEXT,
-        details TEXT
-    )");
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        quiz_id INT UNSIGNED NULL,
+        quiz_nom VARCHAR(255) NOT NULL,
+        quiz_type VARCHAR(20) NOT NULL DEFAULT 'entrainement',
+        candidat VARCHAR(255) NOT NULL,
+        statut VARCHAR(20) NOT NULL DEFAULT 'en_cours',
+        questions_json LONGTEXT NOT NULL,
+        reponses_json LONGTEXT NULL,
+        score DECIMAL(6,2) NULL,
+        note_max DECIMAL(6,2) NOT NULL,
+        seuil_reussite DECIMAL(6,2) NOT NULL DEFAULT 0,
+        duree_minutes INT NULL,
+        reussi TINYINT(1) NULL,
+        afficher_score TINYINT(1) NOT NULL DEFAULT 1,
+        started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME NULL,
+        details LONGTEXT NULL,
+        INDEX idx_tentatives_quiz_candidat (quiz_id, candidat),
+        CONSTRAINT fk_tentatives_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     return $pdo;
 }

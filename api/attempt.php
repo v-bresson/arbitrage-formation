@@ -49,7 +49,7 @@ function qa_draw_questions($pdo, $quiz) {
         $parts = json_decode($quiz['repartition'], true) ?: [];
         $drawn = [];
         foreach ($parts as $part) {
-            $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND categorie = ? ORDER BY RANDOM() LIMIT ?");
+            $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND categorie = ? ORDER BY RAND() LIMIT ?");
             $qStmt->bindValue(1, $part['categorie']);
             $qStmt->bindValue(2, (int)$part['nombre_questions'], PDO::PARAM_INT);
             $qStmt->execute();
@@ -59,7 +59,7 @@ function qa_draw_questions($pdo, $quiz) {
         return $drawn;
     }
 
-    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?) ORDER BY RANDOM() LIMIT ?");
+    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?) ORDER BY RAND() LIMIT ?");
     $qStmt->bindValue(1, $quiz['categorie_filtre'] ?? '');
     $qStmt->bindValue(2, $quiz['categorie_filtre'] ?? '');
     $qStmt->bindValue(3, (int)$quiz['nombre_questions'], PDO::PARAM_INT);

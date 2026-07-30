@@ -27,15 +27,25 @@ L'accès à l'espace admin est protégé par un compte unique (identifiant / mot
 
 ## Installation
 
-Prérequis : PHP 8+ avec les extensions `pdo_sqlite` et `zip` (pour l'import `.xlsx`).
+Prérequis : PHP 8+ avec les extensions `pdo_mysql` et `zip` (pour l'import `.xlsx`), et un serveur **MariaDB** (ou MySQL) accessible.
 
-1. Déposer les fichiers sur un serveur PHP (Apache/Nginx + PHP-FPM, ou `php -S localhost:8000`).
-2. Le dossier `data/` doit être accessible en écriture (base SQLite `data/quizz.sqlite` et `data/credentials.json`, tous deux auto-générés et non versionnés).
-3. Le dossier `uploads/questions/` doit être accessible en écriture et servi publiquement (images jointes aux questions).
-4. Ouvrir `admin/index.php` pour créer le compte admin, ajouter des questions (manuellement ou via import) et créer un premier questionnaire.
-5. Les candidats se rendent sur `index.php` pour passer le questionnaire.
+1. Créer la base et un utilisateur dédié :
+   ```sql
+   CREATE DATABASE archeryops_judging CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'archeryops'@'%' IDENTIFIED BY 'un-mot-de-passe-solide';
+   GRANT ALL PRIVILEGES ON archeryops_judging.* TO 'archeryops'@'%';
+   FLUSH PRIVILEGES;
+   ```
+   Les tables (`questions`, `quizzes`, `tentatives`) sont créées automatiquement au premier appel à l'application (voir `includes/db.php`) — aucun script SQL à lancer à la main.
+2. Copier `includes/db-config.sample.php` en `includes/db-config.php` et renseigner l'hôte, le nom de la base, l'utilisateur et le mot de passe. Ce fichier n'est pas versionné (voir `.gitignore`).
+   Alternative en conteneur/hébergement mutualisé : définir les variables d'environnement `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` (le fichier `db-config.php`, s'il existe, les complète/écrase).
+3. Déposer les fichiers sur un serveur PHP (Apache/Nginx + PHP-FPM, ou `php -S localhost:8000`).
+4. Le dossier `data/` doit être accessible en écriture (`data/credentials.json`, auto-généré et non versionné, pour le compte admin).
+5. Le dossier `uploads/questions/` doit être accessible en écriture et servi publiquement (images jointes aux questions).
+6. Ouvrir `admin/index.php` pour créer le compte admin, ajouter des questions (manuellement ou via import) et créer un premier questionnaire.
+7. Les candidats se rendent sur `index.php` pour passer le questionnaire.
 
-> Le schéma de la base a évolué (types de questions, examens, tentatives). Si une base `data/quizz.sqlite` existait déjà à partir d'une version précédente, supprimez-la avant de redémarrer : elle sera recréée automatiquement avec le nouveau schéma (les données précédentes ne sont pas migrées).
+> Les versions précédentes de l'application utilisaient une base SQLite locale (`data/quizz.sqlite`). Ce fichier n'est plus utilisé et peut être supprimé ; les données n'ont pas été migrées automatiquement vers MariaDB.
 
 ## Structure
 
@@ -47,10 +57,11 @@ api/auth.php                Auth admin (compte unique)
 api/questions.php           CRUD + import questions (admin)
 api/quizzes.php              CRUD questionnaires + archive des tentatives (admin)
 api/attempt.php              Passage de questionnaire côté candidat (public) : liste, démarrage/reprise, soumission
-includes/db.php               Connexion SQLite + schéma
+includes/db.php               Connexion MariaDB/MySQL (PDO) + création du schéma
+includes/db-config.sample.php  Modèle de fichier de config DB (à copier en db-config.php)
 includes/xlsx_reader.php       Lecteur .xlsx minimaliste sans dépendance
 includes/uploads.php           Gestion des images jointes aux questions
 assets/style.css               Charte graphique (reprise de serveur-home)
-data/                          Base SQLite + credentials (non versionnés)
+data/                          Identifiants admin (credentials.json, non versionné)
 uploads/questions/             Images jointes aux questions (non versionnées)
 ```
