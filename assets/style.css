@@ -373,8 +373,9 @@ tr:hover td { background: var(--bg-card-hover); }
 .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(10, 11, 16, 0.7);
-    display: flex; align-items: center; justify-content: center;
-    padding: 20px; z-index: 100;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px; z-index: 300;
+    overflow-y: auto;
 }
 
 .modal {
