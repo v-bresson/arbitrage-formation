@@ -11,27 +11,30 @@ Chaque page définit un état réactif unique (le **ViewModel**) contenant les c
 ## Fonctionnalités
 
 - **Connexion** (`index.php`) : point d'entrée unique de l'application. Première visite = création du compte administrateur ; ensuite, écran de connexion classique (identifiant/mot de passe).
-- **Dashboard** (`dashboard.php`) : après connexion, grille de tuiles configurables depuis l'admin (voir plus bas), et bouton **Administration** visible uniquement pour les comptes de rôle admin.
+- **Dashboard** (`dashboard.php`) : après connexion, grille de tuiles configurables depuis l'admin (voir plus bas) ; une tuile **Administration** y est ajoutée automatiquement pour les comptes de rôle admin (elle ne se configure pas dans l'onglet Tuiles).
 - **Module Questionnaires** (`quiz.php`, atteint via la tuile "Questionnaires") : liste des questionnaires actifs (entraînement ou examen), passage du questionnaire (questions piochées aléatoirement) en tant qu'utilisateur connecté, minuteur visible si chronométré, note finale (ou message générique si le score est masqué) et statut réussi/non validé.
-- **Espace admin** (`admin/index.php`), réservé au rôle admin :
-  - **Questions** : QCM à **réponse unique**, QCM à **réponses multiples**, ou **question ouverte** (réponse libre, non notée automatiquement — à relire manuellement dans l'onglet Résultats). Chaque question peut avoir une **image jointe**, une catégorie, un nombre de points, et être **réservée à l'examen**. Import en masse via **CSV** ou **XLSX** (colonnes : `categorie, type, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement` — voir le modèle `data/modele_import_questions.csv`).
-  - **Questionnaires** de deux types :
-    - **Entraînement** : pioche uniquement parmi les questions non réservées à l'examen (aucune question d'examen ne peut y apparaître).
-    - **Examen** : peut piocher dans toute la banque de questions, avec réglages spécifiques : **fenêtre d'ouverture** (date/heure de début et de fin), **durée chronométrée** (minuteur, auto-soumission à expiration), **nombre de tentatives maximum** par candidat, et **affichage ou masquage du score** au candidat à la fin.
-    - Chaque questionnaire peut piocher soit un nombre global de questions dans une catégorie unique (ou toutes), soit une **répartition par thématique** (ex. 3 questions "Sécurité" + 2 "Scoring" + 5 "Règlement").
-  - **Résultats** : archive de **toutes** les tentatives (entraînement et examen), avec statut (en cours / terminée / expirée), conservée même si le questionnaire ou les questions sont ensuite modifiés ou supprimés.
-  - **Tuiles** : gestion du contenu du dashboard (nom, description, icône, ordre d'affichage, réservée ou non aux admins). Une tuile de type "Questionnaires" pointe vers le module intégré ; une tuile de type "Lien" pointe vers une URL (utile pour brancher plus tard d'autres modules ArcheryOps).
-  - **Utilisateurs** : création/modification des comptes (identifiant, mot de passe, rôle admin/utilisateur, actif/inactif). Il doit toujours rester au moins un administrateur actif (garde-fou sur la suppression/rétrogradation).
-  - **Maintenance** : mise à jour de l'application par upload d'un fichier `.zip`, ou directement depuis la dernière release d'un dépôt GitHub configuré. Une sauvegarde complète du code est créée automatiquement avant toute mise à jour ou restauration ; historique consultable et restaurable depuis l'onglet, avec un journal détaillé de chaque opération (voir plus bas).
+- **Espace admin** (`admin/index.php`), réservé au rôle admin, organisé en menu latéral avec sous-sections dépliables :
+  - **Dashboard** : vue d'ensemble (nombre de questions, questionnaires, tentatives, comptes, version installée).
+  - **Questionnaire**
+    - *Banque de questions* : QCM à **réponse unique**, QCM à **réponses multiples**, ou **question ouverte** (réponse libre, non notée automatiquement — à relire manuellement dans Résultats). Chaque question peut avoir une **image jointe**, une catégorie, un nombre de points, et être **réservée à l'examen**. Import en masse via **CSV** ou **XLSX** (colonnes : `categorie, type, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement` — voir le modèle `data/modele_import_questions.csv`).
+    - *Questionnaires* de deux types :
+      - **Entraînement** : pioche uniquement parmi les questions non réservées à l'examen (aucune question d'examen ne peut y apparaître).
+      - **Examen** : peut piocher dans toute la banque de questions, avec réglages spécifiques : **fenêtre d'ouverture** (date/heure de début et de fin), **durée chronométrée** (minuteur, auto-soumission à expiration), **nombre de tentatives maximum** par candidat, et **affichage ou masquage du score** au candidat à la fin.
+      - Chaque questionnaire peut piocher soit un nombre global de questions dans une catégorie unique (ou toutes), soit une **répartition par thématique** (ex. 3 questions "Sécurité" + 2 "Scoring" + 5 "Règlement").
+    - *Résultats* : archive de **toutes** les tentatives (entraînement et examen), avec statut (en cours / terminée / expirée), conservée même si le questionnaire ou les questions sont ensuite modifiés ou supprimés.
+  - **Comptes utilisateurs** : création/modification des comptes (identifiant, mot de passe, rôle admin/utilisateur, actif/inactif), avec fiche profil optionnelle (prénom, nom, email, téléphone, n° de licence, club). Il doit toujours rester au moins un administrateur actif (garde-fou sur la suppression/rétrogradation).
+  - **Administration**
+    - *Tuiles* : gestion du contenu du dashboard (nom, description, icône, ordre d'affichage, réservée ou non aux admins). Une tuile de type "Questionnaires" pointe vers le module intégré ; une tuile de type "Lien" pointe vers une URL (utile pour brancher plus tard d'autres modules ArcheryOps).
+    - *Mise à jour système* : mise à jour de l'application par upload d'un fichier `.zip`, ou directement depuis la dernière release d'un dépôt GitHub configuré. Une sauvegarde complète du code est créée automatiquement avant toute mise à jour ou restauration ; historique consultable et restaurable, avec un journal détaillé de chaque opération (voir plus bas).
 
 Le nom d'utilisateur connecté sert directement d'identifiant candidat pour les questionnaires (plus besoin de ressaisir son nom) : il identifie aussi la reprise de tentative et le comptage des tentatives sur les examens.
 
 > Architecture multi-modules : ce module vit pour l'instant avec sa propre base d'utilisateurs (table `users`) et sa propre session. Le passage à un référentiel d'utilisateurs et une méthode d'authentification centralisés (ArcheryOps Dashboard) est identifié comme un chantier à part entière, à traiter plus tard sans que cela ne bloque le fonctionnement autonome actuel.
 
-### Mise à jour, sauvegardes et journal (onglet Maintenance)
+### Mise à jour, sauvegardes et journal (Administration > Mise à jour système)
 
 - **Upload manuel** : déposer un fichier `.zip` de la nouvelle version. Avant toute application, une sauvegarde complète du code actuel est créée dans `backups/` (bloquante : si la sauvegarde échoue ou est incomplète, la mise à jour est annulée). L'archive fournie doit contenir `index.php` et `admin/index.php` (à la racine, ou dans un unique dossier englobant — cas des exports GitHub) : c'est la vérification qui atteste qu'il s'agit bien d'une version de cette application avant toute copie de fichiers.
-- **Mise à jour depuis GitHub** : optionnelle, à activer en ajoutant une clé `github` (`token`, `owner`, `repo`) dans `includes/db-config.php` (voir `includes/db-config.sample.php`). L'onglet Maintenance propose alors de vérifier la dernière release publiée et de l'appliquer en un clic (même mécanisme de sauvegarde automatique).
+- **Mise à jour depuis GitHub** : optionnelle, à activer en ajoutant une clé `github` (`token`, `owner`, `repo`) dans `includes/db-config.php` (voir `includes/db-config.sample.php`). L'onglet Mise à jour système propose alors de vérifier la dernière release publiée et de l'appliquer en un clic (même mécanisme de sauvegarde automatique).
 - **Chemins jamais écrasés**, quel que soit le contenu de l'archive : `includes/db-config.php`, `data/`, `uploads/questions/` (images des questions) et `backups/` lui-même. La copie est **additive** : un fichier absent de la nouvelle archive mais présent sur le disque n'est jamais supprimé.
 - **Sauvegardes** : les 10 plus récentes sont conservées (rotation automatique), consultables et restaurables individuellement depuis l'onglet ; restaurer applique le même mécanisme de copie sélective qu'une mise à jour.
 - **Journal de maintenance** (`backups/maintenance.log`) : historique de chaque sauvegarde, mise à jour, restauration ou échec, avec date, auteur et détail ; purgé automatiquement au-delà de 90 jours, ou vidable manuellement.
@@ -82,6 +85,6 @@ includes/uploads.php               Gestion des images jointes aux questions
 assets/style.css                   Charte graphique (reprise de serveur-home)
 assets/mvvm.js                      Mini-noyau MVVM maison (état réactif + rendu automatique)
 uploads/questions/                 Images jointes aux questions (non versionnées)
-VERSION.txt                        Version du code déployé, affichée dans l'onglet Maintenance
+VERSION.txt                        Version du code déployé, affichée dans l'onglet Mise à jour système
 backups/                           Sauvegardes de code + journal de maintenance (non versionnés)
 ```

@@ -14,6 +14,12 @@ function qa_user_row_out($row) {
         'username' => $row['username'],
         'role' => $row['role'],
         'actif' => (bool)$row['actif'],
+        'nom' => $row['nom'],
+        'prenom' => $row['prenom'],
+        'email' => $row['email'],
+        'numero_licence' => $row['numero_licence'],
+        'telephone' => $row['telephone'],
+        'club' => $row['club'],
         'created_at' => $row['created_at'],
     ];
 }
@@ -41,6 +47,12 @@ if ($action === 'save') {
     $password = $body['password'] ?? '';
     $role = in_array($body['role'] ?? '', ['admin', 'user'], true) ? $body['role'] : 'user';
     $actif = !empty($body['actif']) ? 1 : 0;
+    $nom = trim($body['nom'] ?? '') ?: null;
+    $prenom = trim($body['prenom'] ?? '') ?: null;
+    $email = trim($body['email'] ?? '') ?: null;
+    $numeroLicence = trim($body['numero_licence'] ?? '') ?: null;
+    $telephone = trim($body['telephone'] ?? '') ?: null;
+    $club = trim($body['club'] ?? '') ?: null;
 
     if ($username === '' || strlen($username) < 3) {
         http_response_code(422);
@@ -68,15 +80,15 @@ if ($action === 'save') {
     try {
         if ($id) {
             if ($password !== '') {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=? WHERE id=?');
-                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=? WHERE id=?');
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $id]);
             } else {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=? WHERE id=?');
-                $stmt->execute([$username, $role, $actif, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=? WHERE id=?');
+                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $id]);
             }
         } else {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif) VALUES (?,?,?,?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif]);
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club) VALUES (?,?,?,?,?,?,?,?,?,?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club]);
             $id = $pdo->lastInsertId();
         }
     } catch (PDOException $e) {

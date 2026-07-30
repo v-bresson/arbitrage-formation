@@ -24,132 +24,174 @@
             <img src="../assets/logo.png" alt="ArcheryOps Judging">
         </div>
         <div style="display:flex;gap:14px;align-items:center;">
-            <div class="tabs">
-                <button type="button" class="tab-btn active" data-tab="questions">Questions</button>
-                <button type="button" class="tab-btn" data-tab="quizzes">Questionnaires</button>
-                <button type="button" class="tab-btn" data-tab="attempts">Résultats</button>
-                <button type="button" class="tab-btn" data-tab="tiles">Tuiles</button>
-                <button type="button" class="tab-btn" data-tab="users">Utilisateurs</button>
-                <button type="button" class="tab-btn" data-tab="maintenance">Maintenance</button>
-            </div>
-            <a href="../dashboard.php" class="secondary btn">Dashboard</a>
+            <a href="../dashboard.php" class="secondary btn">Retour au site</a>
             <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
         </div>
     </div>
 
-    <!-- ---------- ONGLET QUESTIONS ---------- -->
-    <div id="tab-questions" class="tab-panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button type="button" id="new-question-btn">+ Nouvelle question</button>
-                <button type="button" class="secondary" id="import-btn">Importer (CSV / XLSX)</button>
-            </div>
-            <select id="category-filter" style="max-width:220px;"><option value="">Toutes les catégories</option></select>
-        </div>
-        <div class="table-wrap panel" style="padding:0;">
-            <table>
-                <thead><tr><th>Catégorie</th><th>Type</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Examen</th><th>Actif</th><th></th></tr></thead>
-                <tbody id="questions-tbody"></tbody>
-            </table>
-        </div>
-        <p class="msg" id="questions-msg"></p>
-    </div>
+    <div class="admin-layout">
+        <nav class="admin-sidebar">
+            <button type="button" class="sidebar-link active" data-tab="overview">Dashboard</button>
 
-    <!-- ---------- ONGLET QUESTIONNAIRES ---------- -->
-    <div id="tab-quizzes" class="tab-panel hidden">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-            <button type="button" id="new-quiz-btn">+ Nouveau questionnaire</button>
-        </div>
-        <div class="grid" id="quizzes-grid"></div>
-        <p class="msg" id="quizzes-msg"></p>
-    </div>
-
-    <!-- ---------- ONGLET RESULTATS ---------- -->
-    <div id="tab-attempts" class="tab-panel hidden">
-        <div class="table-wrap panel" style="padding:0;">
-            <table>
-                <thead><tr><th>Questionnaire</th><th>Type</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Fin</th></tr></thead>
-                <tbody id="attempts-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- ---------- ONGLET TUILES ---------- -->
-    <div id="tab-tiles" class="tab-panel hidden">
-        <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Questionnaires" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe).</p>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-            <button type="button" id="new-tile-btn">+ Nouvelle tuile</button>
-        </div>
-        <div class="grid" id="tiles-admin-grid"></div>
-        <p class="msg" id="tiles-admin-msg"></p>
-    </div>
-
-    <!-- ---------- ONGLET UTILISATEURS ---------- -->
-    <div id="tab-users" class="tab-panel hidden">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-            <button type="button" id="new-user-btn">+ Nouvel utilisateur</button>
-        </div>
-        <div class="table-wrap panel" style="padding:0;">
-            <table>
-                <thead><tr><th>Identifiant</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead>
-                <tbody id="users-tbody"></tbody>
-            </table>
-        </div>
-        <p class="msg" id="users-msg"></p>
-    </div>
-
-    <!-- ---------- ONGLET MAINTENANCE ---------- -->
-    <div id="tab-maintenance" class="tab-panel hidden">
-        <div class="panel" style="margin-bottom:20px;">
-            <h2 style="margin-top:0;">Version de l'application</h2>
-            <div class="meta">
-                <span class="pill" id="maint-version-pill">Version : —</span>
-                <span class="pill" id="maint-backup-count-pill">0 sauvegarde(s)</span>
-            </div>
-        </div>
-
-        <div id="maint-github-card" class="panel hidden" style="margin-bottom:20px;">
-            <h2 style="margin-top:0;">Mise à jour depuis GitHub</h2>
-            <p class="modal-hint">Vérifie la dernière release publiée sur le dépôt GitHub configuré (voir <code>includes/db-config.php</code>) et propose de l'appliquer directement (même sauvegarde automatique que la mise à jour par upload).</p>
-            <button type="button" class="secondary" id="maint-github-check-btn">Vérifier les mises à jour</button>
-            <div id="maint-github-result" style="margin-top:12px;"></div>
-        </div>
-
-        <div class="panel" style="margin-bottom:20px;">
-            <h2 style="margin-top:0;">Mettre à jour l'application</h2>
-            <p class="modal-hint">Déposez le fichier <code>.zip</code> de la nouvelle version. Une sauvegarde complète du code actuel est créée automatiquement avant toute modification ; la mise à jour est bloquée si la sauvegarde ne peut pas être réalisée intégralement. <code>includes/db-config.php</code>, <code>data/</code> et <code>uploads/questions/</code> (images des questions) ne sont jamais remplacés.</p>
-            <input type="file" id="maint-update-file" accept=".zip" style="margin-bottom:12px;">
-            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><input type="checkbox" id="maint-update-confirm" style="width:auto;"> Je comprends que cette opération va remplacer les fichiers de l'application.</label>
-            <button type="button" id="maint-update-btn">Lancer la mise à jour</button>
-            <p class="msg" id="maint-update-msg"></p>
-        </div>
-
-        <div class="panel" style="margin-bottom:20px;padding:0;">
-            <div style="padding:24px 24px 0;">
-                <h2 style="margin-top:0;">Sauvegardes de code</h2>
-                <p class="modal-hint">Une sauvegarde complète est créée automatiquement avant chaque mise à jour ; seules les 10 plus récentes sont conservées. Restaurer remplace les fichiers actuels par ceux de la sauvegarde choisie (hors chemins protégés).</p>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>Fichier</th><th>Créée le</th><th>Taille</th><th></th></tr></thead>
-                    <tbody id="maint-backups-tbody"></tbody>
-                </table>
-            </div>
-            <p class="msg" id="maint-backups-msg" style="padding:0 24px 16px;"></p>
-        </div>
-
-        <div class="panel" style="padding:0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:24px 24px 0;flex-wrap:wrap;gap:10px;">
-                <h2 style="margin:0;">Journal de maintenance</h2>
-                <div style="display:flex;gap:10px;">
-                    <button type="button" class="secondary" id="maint-log-refresh-btn">Actualiser</button>
-                    <button type="button" class="danger" id="maint-log-clear-btn">Vider le journal</button>
+            <div class="sidebar-group open">
+                <button type="button" class="sidebar-group-toggle">Questionnaire</button>
+                <div class="sidebar-submenu">
+                    <button type="button" class="sidebar-link" data-tab="questions">Banque de questions</button>
+                    <button type="button" class="sidebar-link" data-tab="quizzes">Questionnaires</button>
+                    <button type="button" class="sidebar-link" data-tab="attempts">Résultats</button>
                 </div>
             </div>
-            <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
-                <table>
-                    <tbody id="maint-log-tbody"></tbody>
-                </table>
+
+            <button type="button" class="sidebar-link" data-tab="users">Comptes utilisateurs</button>
+
+            <div class="sidebar-group">
+                <button type="button" class="sidebar-group-toggle">Administration</button>
+                <div class="sidebar-submenu">
+                    <button type="button" class="sidebar-link" data-tab="tiles">Tuiles</button>
+                    <button type="button" class="sidebar-link" data-tab="maintenance">Mise à jour système</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="admin-content">
+            <!-- ---------- DASHBOARD (VUE D'ENSEMBLE) ---------- -->
+            <div id="tab-overview" class="tab-panel">
+                <div class="grid">
+                    <div class="card"><p style="color:var(--text-secondary);">Questions</p><h2 id="overview-questions-count" style="font-size:2rem;">—</h2></div>
+                    <div class="card"><p style="color:var(--text-secondary);">Questionnaires</p><h2 id="overview-quizzes-count" style="font-size:2rem;">—</h2></div>
+                    <div class="card"><p style="color:var(--text-secondary);">Tentatives enregistrées</p><h2 id="overview-attempts-count" style="font-size:2rem;">—</h2></div>
+                    <div class="card"><p style="color:var(--text-secondary);">Comptes utilisateurs</p><h2 id="overview-users-count" style="font-size:2rem;">—</h2></div>
+                </div>
+                <div class="panel" style="margin-top:24px;">
+                    <h2 style="margin-top:0;">Application</h2>
+                    <div class="meta">
+                        <span class="pill" id="overview-version-pill">Version : —</span>
+                        <span class="pill" id="overview-backup-count-pill">0 sauvegarde(s)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ---------- QUESTIONNAIRE > BANQUE DE QUESTIONS ---------- -->
+            <div id="tab-questions" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Banque de questions</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button type="button" id="new-question-btn">+ Nouvelle question</button>
+                        <button type="button" class="secondary" id="import-btn">Importer (CSV / XLSX)</button>
+                    </div>
+                    <select id="category-filter" style="max-width:220px;"><option value="">Toutes les catégories</option></select>
+                </div>
+                <div class="table-wrap panel" style="padding:0;">
+                    <table>
+                        <thead><tr><th>Catégorie</th><th>Type</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Examen</th><th>Actif</th><th></th></tr></thead>
+                        <tbody id="questions-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="msg" id="questions-msg"></p>
+            </div>
+
+            <!-- ---------- QUESTIONNAIRE > QUESTIONNAIRES ---------- -->
+            <div id="tab-quizzes" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Questionnaires</h2>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+                    <button type="button" id="new-quiz-btn">+ Nouveau questionnaire</button>
+                </div>
+                <div class="grid" id="quizzes-grid"></div>
+                <p class="msg" id="quizzes-msg"></p>
+            </div>
+
+            <!-- ---------- QUESTIONNAIRE > RESULTATS ---------- -->
+            <div id="tab-attempts" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Résultats</h2>
+                <div class="table-wrap panel" style="padding:0;">
+                    <table>
+                        <thead><tr><th>Questionnaire</th><th>Type</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Fin</th></tr></thead>
+                        <tbody id="attempts-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ---------- COMPTES UTILISATEURS ---------- -->
+            <div id="tab-users" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Comptes utilisateurs</h2>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+                    <button type="button" id="new-user-btn">+ Nouvel utilisateur</button>
+                </div>
+                <div class="table-wrap panel" style="padding:0;">
+                    <table>
+                        <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead>
+                        <tbody id="users-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="msg" id="users-msg"></p>
+            </div>
+
+            <!-- ---------- ADMINISTRATION > TUILES ---------- -->
+            <div id="tab-tiles" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Tuiles du dashboard</h2>
+                <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Questionnaires" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe). La tuile "Administration" est ajoutée automatiquement pour les comptes admin et ne se configure pas ici.</p>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+                    <button type="button" id="new-tile-btn">+ Nouvelle tuile</button>
+                </div>
+                <div class="grid" id="tiles-admin-grid"></div>
+                <p class="msg" id="tiles-admin-msg"></p>
+            </div>
+
+            <!-- ---------- ADMINISTRATION > MISE A JOUR SYSTEME ---------- -->
+            <div id="tab-maintenance" class="tab-panel hidden">
+                <h2 style="margin-bottom:16px;">Mise à jour système</h2>
+                <div class="panel" style="margin-bottom:20px;">
+                    <h2 style="margin-top:0;">Version de l'application</h2>
+                    <div class="meta">
+                        <span class="pill" id="maint-version-pill">Version : —</span>
+                        <span class="pill" id="maint-backup-count-pill">0 sauvegarde(s)</span>
+                    </div>
+                </div>
+
+                <div id="maint-github-card" class="panel hidden" style="margin-bottom:20px;">
+                    <h2 style="margin-top:0;">Mise à jour depuis GitHub</h2>
+                    <p class="modal-hint">Vérifie la dernière release publiée sur le dépôt GitHub configuré (voir <code>includes/db-config.php</code>) et propose de l'appliquer directement (même sauvegarde automatique que la mise à jour par upload).</p>
+                    <button type="button" class="secondary" id="maint-github-check-btn">Vérifier les mises à jour</button>
+                    <div id="maint-github-result" style="margin-top:12px;"></div>
+                </div>
+
+                <div class="panel" style="margin-bottom:20px;">
+                    <h2 style="margin-top:0;">Mettre à jour l'application</h2>
+                    <p class="modal-hint">Déposez le fichier <code>.zip</code> de la nouvelle version. Une sauvegarde complète du code actuel est créée automatiquement avant toute modification ; la mise à jour est bloquée si la sauvegarde ne peut pas être réalisée intégralement. <code>includes/db-config.php</code>, <code>data/</code> et <code>uploads/questions/</code> (images des questions) ne sont jamais remplacés.</p>
+                    <input type="file" id="maint-update-file" accept=".zip" style="margin-bottom:12px;">
+                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><input type="checkbox" id="maint-update-confirm" style="width:auto;"> Je comprends que cette opération va remplacer les fichiers de l'application.</label>
+                    <button type="button" id="maint-update-btn">Lancer la mise à jour</button>
+                    <p class="msg" id="maint-update-msg"></p>
+                </div>
+
+                <div class="panel" style="margin-bottom:20px;padding:0;">
+                    <div style="padding:24px 24px 0;">
+                        <h2 style="margin-top:0;">Sauvegardes de code</h2>
+                        <p class="modal-hint">Une sauvegarde complète est créée automatiquement avant chaque mise à jour ; seules les 10 plus récentes sont conservées. Restaurer remplace les fichiers actuels par ceux de la sauvegarde choisie (hors chemins protégés).</p>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Fichier</th><th>Créée le</th><th>Taille</th><th></th></tr></thead>
+                            <tbody id="maint-backups-tbody"></tbody>
+                        </table>
+                    </div>
+                    <p class="msg" id="maint-backups-msg" style="padding:0 24px 16px;"></p>
+                </div>
+
+                <div class="panel" style="padding:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:24px 24px 0;flex-wrap:wrap;gap:10px;">
+                        <h2 style="margin:0;">Journal de maintenance</h2>
+                        <div style="display:flex;gap:10px;">
+                            <button type="button" class="secondary" id="maint-log-refresh-btn">Actualiser</button>
+                            <button type="button" class="danger" id="maint-log-clear-btn">Vider le journal</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+                        <table>
+                            <tbody id="maint-log-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -343,6 +385,18 @@
             <input type="hidden" id="user-id">
             <div class="field"><label>Identifiant</label><input type="text" id="user-username" required minlength="3"></div>
             <div class="field"><label id="user-password-label">Mot de passe (8 caractères min.)</label><input type="password" id="user-password" autocomplete="new-password"></div>
+            <div class="field-row">
+                <div class="field"><label>Prénom</label><input type="text" id="user-prenom"></div>
+                <div class="field"><label>Nom</label><input type="text" id="user-nom"></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Email</label><input type="text" id="user-email"></div>
+                <div class="field"><label>Téléphone</label><input type="text" id="user-telephone"></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>N° de licence</label><input type="text" id="user-numero-licence"></div>
+                <div class="field"><label>Club</label><input type="text" id="user-club"></div>
+            </div>
             <div class="field">
                 <label>Rôle</label>
                 <select id="user-role">

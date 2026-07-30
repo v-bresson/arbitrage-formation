@@ -31,6 +31,19 @@ function qa_db_configured() {
     return file_exists(__DIR__ . '/db-config.php') || getenv('DB_HOST') !== false;
 }
 
+// Ajoute une colonne à une table existante si elle n'y est pas déjà —
+// permet de faire évoluer le schéma (nouveaux champs profil utilisateur,
+// etc.) sur une installation existante sans script de migration séparé.
+function qa_add_column_if_missing($pdo, $table, $column, $definition) {
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) c FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+    );
+    $stmt->execute([$table, $column]);
+    if ((int)$stmt->fetch()['c'] === 0) {
+        $pdo->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+    }
+}
+
 function get_db() {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
@@ -154,8 +167,20 @@ function get_db() {
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
         actif TINYINT(1) NOT NULL DEFAULT 1,
+        nom VARCHAR(191) NULL,
+        prenom VARCHAR(191) NULL,
+        email VARCHAR(191) NULL,
+        numero_licence VARCHAR(50) NULL,
+        telephone VARCHAR(30) NULL,
+        club VARCHAR(191) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    qa_add_column_if_missing($pdo, 'users', 'nom', 'VARCHAR(191) NULL');
+    qa_add_column_if_missing($pdo, 'users', 'prenom', 'VARCHAR(191) NULL');
+    qa_add_column_if_missing($pdo, 'users', 'email', 'VARCHAR(191) NULL');
+    qa_add_column_if_missing($pdo, 'users', 'numero_licence', 'VARCHAR(50) NULL');
+    qa_add_column_if_missing($pdo, 'users', 'telephone', 'VARCHAR(30) NULL');
+    qa_add_column_if_missing($pdo, 'users', 'club', 'VARCHAR(191) NULL');
 
     // ---------------------------------------------------------------
     // Tuiles du dashboard : configurables depuis l'admin. type=questionnaire

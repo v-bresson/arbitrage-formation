@@ -98,13 +98,17 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     window.location.href = '../index.php';
 });
 
-// ---------- Onglets ----------
-document.querySelectorAll('.tab-btn').forEach(btn => {
+// ---------- Menu latéral (Dashboard / Questionnaire / Comptes utilisateurs / Administration) ----------
+document.querySelectorAll('.sidebar-link[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
         document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+
+        const parentGroup = btn.closest('.sidebar-group');
+        if (parentGroup) parentGroup.classList.add('open');
+
         if (btn.dataset.tab === 'quizzes') loadQuizzes();
         if (btn.dataset.tab === 'attempts') loadAttempts();
         if (btn.dataset.tab === 'tiles') loadTilesAdmin();
@@ -113,8 +117,29 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     });
 });
 
+document.querySelectorAll('.sidebar-group-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => toggle.closest('.sidebar-group').classList.toggle('open'));
+});
+
+// ---------- Dashboard (vue d'ensemble) ----------
+// Purement dérivé des collections déjà chargées ailleurs (questions,
+// quizzes, attempts, users, maint) : se redessine automatiquement dès
+// que l'une d'elles change, sans fonction de chargement dédiée.
+qaWatchEffect(() => {
+    document.getElementById('overview-questions-count').textContent = vm.questions.length;
+    document.getElementById('overview-quizzes-count').textContent = vm.quizzes.length;
+    document.getElementById('overview-attempts-count').textContent = vm.attempts.length;
+    document.getElementById('overview-users-count').textContent = vm.users.length;
+    document.getElementById('overview-version-pill').textContent = 'Version : ' + (vm.maint.version || '—');
+    document.getElementById('overview-backup-count-pill').textContent = vm.maint.backupCount + ' sauvegarde(s)';
+});
+
 function initAdmin() {
     loadQuestions();
+    loadQuizzes();
+    loadAttempts();
+    loadUsers();
+    loadMaintenance();
 }
 
 // ================= QUESTIONS =================
@@ -804,13 +829,15 @@ async function loadUsers() {
 qaWatchEffect(() => {
     const tbody = document.getElementById('users-tbody');
     if (!vm.users.length) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-secondary);">${escapeHtml(vm.msg.users || 'Aucun utilisateur.')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">${escapeHtml(vm.msg.users || 'Aucun utilisateur.')}</td></tr>`;
         return;
     }
 
     tbody.innerHTML = vm.users.map(u => `
         <tr>
             <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
+            <td>${escapeHtml(u.club || '—')}</td>
             <td><span class="pill ${u.role === 'admin' ? 'warn' : ''}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
             <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
             <td>${escapeHtml(u.created_at)}</td>
@@ -833,6 +860,12 @@ function openUserModal(id) {
     modalMsg.textContent = '';
     userForm.reset();
     document.getElementById('user-id').value = '';
+    document.getElementById('user-prenom').value = '';
+    document.getElementById('user-nom').value = '';
+    document.getElementById('user-email').value = '';
+    document.getElementById('user-telephone').value = '';
+    document.getElementById('user-numero-licence').value = '';
+    document.getElementById('user-club').value = '';
     document.getElementById('user-role').value = 'user';
     document.getElementById('user-actif').checked = true;
     document.getElementById('user-password').required = true;
@@ -845,6 +878,12 @@ function openUserModal(id) {
             document.getElementById('user-modal-title').textContent = "Modifier l'utilisateur";
             document.getElementById('user-id').value = u.id;
             document.getElementById('user-username').value = u.username;
+            document.getElementById('user-prenom').value = u.prenom || '';
+            document.getElementById('user-nom').value = u.nom || '';
+            document.getElementById('user-email').value = u.email || '';
+            document.getElementById('user-telephone').value = u.telephone || '';
+            document.getElementById('user-numero-licence').value = u.numero_licence || '';
+            document.getElementById('user-club').value = u.club || '';
             document.getElementById('user-role').value = u.role;
             document.getElementById('user-actif').checked = u.actif;
             document.getElementById('user-password').required = false;
@@ -869,6 +908,12 @@ userForm.addEventListener('submit', async (e) => {
         id: document.getElementById('user-id').value || null,
         username: document.getElementById('user-username').value,
         password: document.getElementById('user-password').value,
+        prenom: document.getElementById('user-prenom').value,
+        nom: document.getElementById('user-nom').value,
+        email: document.getElementById('user-email').value,
+        telephone: document.getElementById('user-telephone').value,
+        numero_licence: document.getElementById('user-numero-licence').value,
+        club: document.getElementById('user-club').value,
         role: document.getElementById('user-role').value,
         actif: document.getElementById('user-actif').checked,
     };

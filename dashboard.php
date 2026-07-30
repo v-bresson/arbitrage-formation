@@ -14,7 +14,6 @@
     </div>
     <div style="display:flex;gap:14px;align-items:center;">
         <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
-        <a href="admin/index.php" id="admin-btn" class="btn hidden">Administration</a>
         <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
     </div>
 </div>
@@ -54,19 +53,23 @@ const vm = qaReactive({
 
 function bind() {
     document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
-    document.getElementById('admin-btn').classList.toggle('hidden', vm.role !== 'admin');
 
     const grid = document.getElementById('tiles-grid');
     const msg = document.getElementById('tiles-msg');
     msg.textContent = vm.tilesMsg;
 
-    if (!vm.tiles || !vm.tiles.length) {
+    const tiles = vm.tiles ? [...vm.tiles] : [];
+    if (vm.role === 'admin') {
+        tiles.push({ nom: 'Administration', description: 'Questions, questionnaires, comptes utilisateurs et maintenance.', type: 'admin', icone: 'lock' });
+    }
+
+    if (!tiles.length) {
         grid.innerHTML = '';
         return;
     }
 
-    grid.innerHTML = vm.tiles.map(t => {
-        const href = t.type === 'questionnaire' ? 'quiz.php' : t.url;
+    grid.innerHTML = tiles.map(t => {
+        const href = t.type === 'questionnaire' ? 'quiz.php' : (t.type === 'admin' ? 'admin/index.php' : t.url);
         const target = t.type === 'lien' ? ' target="_blank" rel="noopener noreferrer"' : '';
         return `
         <a class="card" href="${escapeHtml(href)}"${target} style="text-decoration:none;align-items:center;text-align:center;">
@@ -107,7 +110,7 @@ async function loadTiles() {
         if (res.status === 401) { window.location.href = 'index.php'; return; }
         const tiles = await res.json();
         vm.tiles = tiles;
-        vm.tilesMsg = tiles.length ? '' : 'Aucune tuile configurée pour le moment.';
+        vm.tilesMsg = (tiles.length || vm.role === 'admin') ? '' : 'Aucune tuile configurée pour le moment.';
     } catch (err) {
         vm.tilesMsg = 'Erreur de chargement des tuiles';
     }
