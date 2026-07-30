@@ -15,7 +15,7 @@ Chaque page définit un état réactif unique (le **ViewModel**) contenant les c
 - **Module Questionnaires** (`quiz.php`, atteint via la tuile "Questionnaires") : liste des questionnaires actifs (entraînement ou examen), passage du questionnaire (questions piochées aléatoirement) en tant qu'utilisateur connecté, minuteur visible si chronométré, note finale (ou message générique si le score est masqué) et statut réussi/non validé.
 - **Espace admin** (`admin/index.php`), réservé au rôle admin, organisé en menu latéral avec sous-sections dépliables :
   - **Dashboard** : vue d'ensemble (nombre de questions, questionnaires, tentatives, comptes, version installée).
-  - **Questionnaire**
+  - **Candidats arbitres**
     - *Banque de questions* : QCM à **réponse unique**, QCM à **réponses multiples**, ou **question ouverte** (réponse libre, non notée automatiquement — à relire manuellement dans Résultats). Chaque question peut avoir une **image jointe**, une catégorie, un nombre de points, et être **réservée à l'examen**. Import en masse via **CSV** ou **XLSX** (colonnes : `categorie, type, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement` — voir le modèle `data/modele_import_questions.csv`).
     - *Questionnaires* de deux types :
       - **Entraînement** : pioche uniquement parmi les questions non réservées à l'examen (aucune question d'examen ne peut y apparaître).

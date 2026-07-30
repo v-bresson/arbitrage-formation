@@ -24,6 +24,7 @@
             <img src="../assets/logo.png" alt="ArcheryOps Judging">
         </div>
         <div style="display:flex;gap:14px;align-items:center;">
+            <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
             <a href="../dashboard.php" class="secondary btn">Retour au site</a>
             <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
         </div>
@@ -34,7 +35,7 @@
             <button type="button" class="sidebar-link active" data-tab="overview">Dashboard</button>
 
             <div class="sidebar-group open">
-                <button type="button" class="sidebar-group-toggle">Questionnaire</button>
+                <button type="button" class="sidebar-group-toggle">Candidats arbitres</button>
                 <div class="sidebar-submenu">
                     <button type="button" class="sidebar-link" data-tab="questions">Banque de questions</button>
                     <button type="button" class="sidebar-link" data-tab="quizzes">Questionnaires</button>

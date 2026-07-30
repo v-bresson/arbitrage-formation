@@ -80,6 +80,7 @@ async function checkSession() {
             showScreen('denied');
             return;
         }
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
         showScreen('admin');
         initAdmin();
     } catch (err) {
