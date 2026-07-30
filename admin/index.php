@@ -394,12 +394,15 @@
 
 <!-- ================= MODALE UTILISATEUR ================= -->
 <div id="user-modal-overlay" class="modal-overlay hidden">
-    <div class="modal">
+    <div class="modal" style="max-width:720px;">
         <h2 id="user-modal-title">Nouvel utilisateur</h2>
         <form id="user-form" style="display:flex;flex-direction:column;gap:12px;">
             <input type="hidden" id="user-id">
             <div class="field"><label>Identifiant</label><input type="text" id="user-username" required minlength="3"></div>
-            <div class="field"><label id="user-password-label">Mot de passe (8 caractères min.)</label><input type="password" id="user-password" autocomplete="new-password"></div>
+            <div class="field-row">
+                <div class="field"><label id="user-password-label">Mot de passe (8 caractères min.)</label><input type="password" id="user-password" autocomplete="new-password"></div>
+                <div class="field"><label id="user-password-confirm-label">Vérification du mot de passe</label><input type="password" id="user-password-confirm" autocomplete="new-password"></div>
+            </div>
             <div class="field-row">
                 <div class="field"><label>Prénom</label><input type="text" id="user-prenom"></div>
                 <div class="field"><label>Nom</label><input type="text" id="user-nom"></div>
@@ -454,7 +457,7 @@
                 </div>
             </div>
 
-            <div class="modal-actions">
+            <div class="modal-actions" style="justify-content:center;">
                 <button type="button" class="secondary" id="user-cancel-btn">Annuler</button>
                 <button type="submit" id="user-save-btn">Enregistrer</button>
             </div>

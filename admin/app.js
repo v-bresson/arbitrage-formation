@@ -932,6 +932,7 @@ function openUserModal(id) {
     document.getElementById('user-date-entree-formation').value = '';
     document.getElementById('user-password').required = true;
     document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
+    document.getElementById('user-password-confirm-label').textContent = 'Vérification du mot de passe';
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
     populateFormateurReferentOptions(null);
 
@@ -955,6 +956,7 @@ function openUserModal(id) {
             populateFormateurReferentOptions(u.formateur_referent_id);
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
+            document.getElementById('user-password-confirm-label').textContent = 'Vérification du nouveau mot de passe';
         }
     }
     updateTrainingFieldVisibility();
@@ -985,6 +987,14 @@ userForm.addEventListener('submit', async (e) => {
         modalMsg.textContent = 'Sélectionnez au moins un rôle';
         return;
     }
+
+    const password = document.getElementById('user-password').value;
+    const passwordConfirm = document.getElementById('user-password-confirm').value;
+    if (password !== passwordConfirm) {
+        modalMsg.textContent = 'Les mots de passe ne correspondent pas';
+        return;
+    }
+
     saveBtn.disabled = true;
 
     const payload = {
