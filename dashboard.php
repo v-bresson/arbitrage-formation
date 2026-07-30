@@ -360,7 +360,14 @@ async function deleteTile(id) {
 
 document.getElementById('tiles-manage-toggle').addEventListener('change', async (e) => {
     vm.manageMode = e.target.checked;
-    if (vm.manageMode && !vm.adminTiles) await loadAdminTiles();
+    if (vm.manageMode) {
+        if (!vm.adminTiles) await loadAdminTiles();
+    } else {
+        // Recharge les raccourcis affichés : sinon les modifications faites
+        // en mode config (ajout/suppression/réordonnancement) n'apparaissent
+        // qu'après un rechargement manuel de la page.
+        await loadTiles();
+    }
 });
 
 async function loadTiles() {

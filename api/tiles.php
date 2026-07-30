@@ -78,7 +78,8 @@ if ($action === 'save') {
     $adminUniquement = !empty($body['admin_uniquement']) ? 1 : 0;
     $ordre = (int)($body['ordre'] ?? 0);
     $actif = !empty($body['actif']) ? 1 : 0;
-    $scope = in_array($body['scope'] ?? 'candidat', ['candidat', 'accueil'], true) ? $body['scope'] : 'candidat';
+    $requestedTileScope = $body['scope'] ?? 'candidat';
+    $scope = in_array($requestedTileScope, ['candidat', 'accueil'], true) ? $requestedTileScope : 'candidat';
 
     if ($nom === '') {
         http_response_code(422);
