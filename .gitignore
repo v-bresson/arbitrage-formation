@@ -1,0 +1,7 @@
+data/*.sqlite
+data/credentials.json
+uploads/questions/*
+!uploads/questions/.gitkeep
+includes/db-config.php
+backups/*
+!backups/.gitkeep
