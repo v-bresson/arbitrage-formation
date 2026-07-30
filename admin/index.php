@@ -375,6 +375,36 @@
             </div>
             <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="user-actif" style="width:auto;" checked> Compte actif</label>
 
+            <div id="user-training-field" style="display:flex;flex-direction:column;gap:12px;">
+                <label style="margin:0;">Suivi de formation</label>
+                <div class="field-row">
+                    <div class="field">
+                        <label>Niveau de formation</label>
+                        <select id="user-niveau-formation">
+                            <option value="">—</option>
+                            <option value="Assistant Arbitre">Assistant Arbitre</option>
+                            <option value="Arbitre Fédéral">Arbitre Fédéral</option>
+                            <option value="Arbitre Duel">Arbitre Duel</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Option</label>
+                        <select id="user-option-pratique">
+                            <option value="">—</option>
+                            <option value="Cible">Cible</option>
+                            <option value="Nat/3D">Nat/3D</option>
+                            <option value="Campagne">Campagne</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Formateur référent</label>
+                    <select id="user-formateur-referent">
+                        <option value="">—</option>
+                    </select>
+                </div>
+            </div>
+
             <div id="user-permissions-field">
                 <label>Permissions par section</label>
                 <p class="modal-hint" style="margin-bottom:8px;">Reprend par défaut le groupe de droits du rôle choisi ; modifie une ligne pour l'écarter du groupe uniquement pour cette personne.</p>

@@ -31,6 +31,12 @@ const QA_PERMISSION_SECTIONS = [
 
 const QA_PERMISSION_LEVELS = ['none', 'read', 'manage'];
 
+// Suivi de formation d'un candidat : niveau visé et option de pratique,
+// éditables uniquement par un administrateur ou un formateur/membre CRA
+// (voir qa_has_formateur_access ci-dessous et api/users.php).
+const QA_NIVEAUX_FORMATION = ['Assistant Arbitre', 'Arbitre Fédéral', 'Arbitre Duel'];
+const QA_OPTIONS_PRATIQUE = ['Cible', 'Nat/3D', 'Campagne'];
+
 // Alias de compatibilité : une installation pas encore migrée (voir
 // includes/db.php, migration roles_permissions_2026_07) a encore des
 // comptes avec l'ancien rôle 'admin'/'user' en base tant que la migration
@@ -142,6 +148,14 @@ function qa_has_pure_admin_access($pdo, $userId, $role) {
         if (($perms[$section] ?? 'none') !== 'none') return true;
     }
     return false;
+}
+
+// Vrai si l'utilisateur peut éditer le suivi de formation d'un candidat
+// (niveau, option de pratique, formateur référent) : administrateur ou
+// formateur/membre CRA, indépendamment de la permission "users" (réservée
+// à la gestion complète des comptes).
+function qa_can_edit_candidate_training($role) {
+    return in_array(qa_normalize_role($role), ['formateur', 'membre_cra', 'super_admin'], true);
 }
 
 // Garde d'accès pour les endpoints API admin, section par section — à la
