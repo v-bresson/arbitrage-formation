@@ -835,10 +835,9 @@ function renderCandidatsTable(users, emptyMsg) {
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
             <td>${escapeHtml(u.club || '—')}</td>
-            <td>${canEdit ? `<select class="quick-niveau-select" data-id="${u.id}">
-                <option value="">—</option>
-                ${NIVEAUX_FORMATION.map(n => `<option value="${escapeHtml(n)}" ${u.niveau_formation === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
-            </select>` : escapeHtml(u.niveau_formation || '—')}</td>
+            <td>${(u.niveaux_valides || []).length
+                ? u.niveaux_valides.map(n => `<span class="pill" title="${n.date_validation ? 'Validé le ' + new Date(n.date_validation).toLocaleDateString('fr-FR') : 'En cours'}">${escapeHtml(n.niveau)}</span>`).join(' ')
+                : '—'}</td>
             <td>${canEdit ? `<select class="quick-option-select" data-id="${u.id}">
                 <option value="">—</option>
                 ${OPTIONS_PRATIQUE.map(o => `<option value="${escapeHtml(o)}" ${u.option_pratique === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
@@ -856,7 +855,6 @@ function renderCandidatsTable(users, emptyMsg) {
 
     tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
     tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
-    tbody.querySelectorAll('.quick-niveau-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { niveau_formation: sel.value })));
     tbody.querySelectorAll('.quick-option-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { option_pratique: sel.value })));
     tbody.querySelectorAll('.quick-formateur-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { formateur_referent_id: sel.value || null })));
 }
@@ -876,7 +874,7 @@ async function quickSaveCandidat(id, changes) {
         club: u.club,
         roles: u.roles || [u.role],
         actif: u.actif,
-        niveau_formation: u.niveau_formation,
+        niveaux_valides: u.niveaux_valides || [],
         option_pratique: u.option_pratique,
         formateur_referent_id: u.formateur_referent_id,
         date_entree_formation: u.date_entree_formation,
@@ -914,6 +912,38 @@ function populateFormateurReferentOptions(selectedId) {
     ).join('');
 }
 
+// Un candidat évolue dans le temps sur les niveaux de formation : chaque
+// niveau coché peut avoir sa propre date de validation (facultative, "en
+// cours" si absente). Voir includes/db.php, table candidat_niveaux_valides.
+function renderNiveauxValidesChecklist(niveauxValides) {
+    const container = document.getElementById('user-niveaux-valides');
+    const byNiveau = Object.fromEntries((niveauxValides || []).map(n => [n.niveau, n.date_validation]));
+    container.innerHTML = NIVEAUX_FORMATION.map(n => {
+        const validated = Object.prototype.hasOwnProperty.call(byNiveau, n);
+        const safeId = 'niveau-valide-' + n.replace(/[^a-zA-Z0-9]/g, '-');
+        return `
+        <div class="field-row" style="align-items:center;gap:12px;">
+            <label style="display:flex;align-items:center;gap:8px;margin:0;flex:1;">
+                <input type="checkbox" class="niveau-valide-checkbox" data-niveau="${escapeHtml(n)}" id="${safeId}" style="width:auto;" ${validated ? 'checked' : ''}>
+                ${escapeHtml(n)}
+            </label>
+            <input type="date" class="niveau-valide-date" data-niveau="${escapeHtml(n)}" style="max-width:200px;" value="${byNiveau[n] || ''}" ${validated ? '' : 'disabled'}>
+        </div>`;
+    }).join('');
+    container.querySelectorAll('.niveau-valide-checkbox').forEach(cb => cb.addEventListener('change', () => {
+        const dateInput = container.querySelector(`.niveau-valide-date[data-niveau="${CSS.escape(cb.dataset.niveau)}"]`);
+        dateInput.disabled = !cb.checked;
+        if (!cb.checked) dateInput.value = '';
+    }));
+}
+
+function getNiveauxValidesFromForm() {
+    return [...document.querySelectorAll('.niveau-valide-checkbox:checked')].map(cb => ({
+        niveau: cb.dataset.niveau,
+        date_validation: document.querySelector(`.niveau-valide-date[data-niveau="${CSS.escape(cb.dataset.niveau)}"]`).value || null,
+    }));
+}
+
 function openUserModal(id) {
     const modalMsg = document.getElementById('user-modal-msg');
     modalMsg.textContent = '';
@@ -927,7 +957,7 @@ function openUserModal(id) {
     document.getElementById('user-club').value = '';
     populateUserRoleCheckboxes(['candidat']);
     document.getElementById('user-actif').checked = true;
-    document.getElementById('user-niveau-formation').value = '';
+    renderNiveauxValidesChecklist([]);
     document.getElementById('user-option-pratique').value = '';
     document.getElementById('user-date-entree-formation').value = '';
     document.getElementById('user-password').required = true;
@@ -950,7 +980,7 @@ function openUserModal(id) {
             document.getElementById('user-club').value = u.club || '';
             populateUserRoleCheckboxes(u.roles || [u.role]);
             document.getElementById('user-actif').checked = u.actif;
-            document.getElementById('user-niveau-formation').value = u.niveau_formation || '';
+            renderNiveauxValidesChecklist(u.niveaux_valides || []);
             document.getElementById('user-option-pratique').value = u.option_pratique || '';
             document.getElementById('user-date-entree-formation').value = u.date_entree_formation || '';
             populateFormateurReferentOptions(u.formateur_referent_id);
@@ -1009,7 +1039,7 @@ userForm.addEventListener('submit', async (e) => {
         club: document.getElementById('user-club').value,
         roles: selectedRoles,
         actif: document.getElementById('user-actif').checked,
-        niveau_formation: document.getElementById('user-niveau-formation').value,
+        niveaux_valides: getNiveauxValidesFromForm(),
         option_pratique: document.getElementById('user-option-pratique').value,
         formateur_referent_id: document.getElementById('user-formateur-referent').value || null,
         date_entree_formation: document.getElementById('user-date-entree-formation').value,

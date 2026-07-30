@@ -74,7 +74,7 @@ if ($action === 'fiche') {
         'telephone' => $u['telephone'],
         'club' => $u['club'],
         'numero_licence' => $u['numero_licence'],
-        'niveau_formation' => $u['niveau_formation'] ?? null,
+        'niveaux_valides' => qa_user_niveaux_valides($pdo, $u['id']),
         'option_pratique' => $u['option_pratique'] ?? null,
         'date_entree_formation' => $u['date_entree_formation'] ?? null,
         'stats' => [

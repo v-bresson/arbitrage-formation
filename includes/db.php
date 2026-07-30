@@ -39,6 +39,16 @@ function qa_column_exists($pdo, $table, $column) {
     return (int)$stmt->fetch()['c'] > 0;
 }
 
+// Historique des niveaux de formation validés d'un candidat (table
+// candidat_niveaux_valides) : un candidat évolue dans le temps, chaque
+// niveau validé étant daté séparément. Utilisé par api/users.php (fiche
+// admin) et api/mes_candidats.php (fiche formateur en lecture seule).
+function qa_user_niveaux_valides($pdo, $userId) {
+    $stmt = $pdo->prepare('SELECT niveau, date_validation FROM candidat_niveaux_valides WHERE user_id = ? ORDER BY date_validation IS NULL, date_validation');
+    $stmt->execute([$userId]);
+    return array_map(fn($row) => ['niveau' => $row['niveau'], 'date_validation' => $row['date_validation']], $stmt->fetchAll());
+}
+
 // ---------------------------------------------------------------------
 // Migrations de schéma : liste centrale des évolutions de la base au fil
 // des versions. Une migration n'est JAMAIS appliquée automatiquement sur
@@ -365,6 +375,33 @@ function get_db() {
         SELECT u.id, CASE WHEN u.role = 'admin' THEN 'super_admin' WHEN u.role = 'user' THEN 'candidat' ELSE u.role END
         FROM users u
         WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id)");
+
+    // ---------------------------------------------------------------
+    // Progression d'un candidat sur les niveaux de formation : un candidat
+    // évolue dans le temps (Assistant Arbitre, puis Arbitre Fédéral, puis
+    // Arbitre Duel...), chaque niveau étant validé à une date donnée.
+    // Remplace l'ancienne colonne unique users.niveau_formation (conservée
+    // en base mais plus utilisée) par un historique par niveau, éditable
+    // uniquement depuis Administration > Comptes utilisateurs.
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS candidat_niveaux_valides (
+        user_id INT UNSIGNED NOT NULL,
+        niveau VARCHAR(50) NOT NULL,
+        date_validation DATE NULL,
+        PRIMARY KEY (user_id, niveau),
+        CONSTRAINT fk_candidat_niveaux_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Reprend l'ancien niveau unique (s'il existe) comme premier niveau
+    // validé, sans date connue — uniquement pour les comptes qui n'ont
+    // encore aucune ligne dans le nouvel historique.
+    if (qa_column_exists($pdo, 'users', 'niveau_formation')) {
+        $pdo->exec("INSERT INTO candidat_niveaux_valides (user_id, niveau, date_validation)
+            SELECT u.id, u.niveau_formation, NULL
+            FROM users u
+            WHERE u.niveau_formation IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM candidat_niveaux_valides c WHERE c.user_id = u.id)");
+    }
 
     // ---------------------------------------------------------------
     // Rôles disponibles (4 rôles historiques + rôles personnalisés créés
