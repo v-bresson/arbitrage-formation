@@ -267,6 +267,7 @@ body.has-fixed-header { padding-top: 0; }
     border-radius: 10px;
     font-weight: 600;
     font-size: 0.9rem;
+    text-decoration: none;
 }
 
 .sidebar-link:hover, .sidebar-group-toggle:hover { background: var(--bg-card-hover); color: var(--text-primary); }
@@ -287,6 +288,30 @@ body.has-fixed-header { padding-top: 0; }
 .sidebar-submenu .sidebar-link { font-weight: 500; font-size: 0.85rem; padding: 8px 14px; }
 
 .admin-content { flex: 1; min-width: 0; }
+
+/* ---------- Bouton commutable "Modifier les tuiles" (sidebar) ---------- */
+.sidebar-edit-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.sidebar-edit-toggle:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.sidebar-edit-toggle[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
 
 @media (max-width: 800px) {
     .admin-layout { flex-direction: column; }
