@@ -24,6 +24,10 @@ body {
     padding: 40px 20px;
 }
 
+@media (max-width: 600px) {
+    body { padding: 20px 12px; }
+}
+
 .hidden { display: none !important; }
 
 a { color: var(--accent); }
@@ -91,6 +95,12 @@ a { color: var(--accent); }
     flex-direction: column;
     gap: 16px;
     text-align: left;
+}
+
+@media (max-width: 600px) {
+    .panel { padding: 20px; }
+    .card { padding: 20px; }
+    .modal { padding: 20px; }
 }
 
 input[type="text"], input[type="password"], input[type="number"], input[type="file"],
@@ -165,6 +175,8 @@ button.danger { background: var(--danger); }
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 6px;
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 .tabs button {
@@ -174,9 +186,16 @@ button.danger { background: var(--danger); }
     border-radius: 8px;
     font-weight: 600;
     font-size: 0.9rem;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .tabs button.active { background: var(--accent); color: white; }
+
+@media (max-width: 700px) {
+    .top-bar { justify-content: center; }
+    .top-bar > div { width: 100%; justify-content: center; }
+}
 
 /* ---------- Cards / grid ---------- */
 .grid {
@@ -338,6 +357,11 @@ tr:hover td { background: var(--bg-card-hover); }
 }
 .result-score.ok { color: var(--success); }
 .result-score.ko { color: var(--danger); }
+
+@media (max-width: 500px) {
+    .result-score { font-size: 2.2rem; }
+    .timer-bar { flex-wrap: wrap; gap: 6px; }
+}
 
 footer {
     margin-top: 60px;
