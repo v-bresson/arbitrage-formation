@@ -132,5 +132,47 @@ function get_db() {
         CONSTRAINT fk_tentatives_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // ---------------------------------------------------------------
+    // Utilisateurs : compte unique pour toute l'application (connexion,
+    // dashboard, tuiles). Le rôle 'admin' donne accès à l'espace
+    // d'administration ; 'user' n'a accès qu'au dashboard et aux tuiles
+    // non réservées. Le premier compte créé (écran de configuration
+    // initiale) est toujours admin.
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        actif TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // ---------------------------------------------------------------
+    // Tuiles du dashboard : configurables depuis l'admin. type=questionnaire
+    // pointe toujours vers quiz.php (module de questionnaires intégré) ;
+    // type=lien pointe vers l'URL définie (autre module de la future
+    // architecture ArcheryOps, ou lien externe). admin_uniquement masque
+    // la tuile aux utilisateurs non-admin.
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS tiles (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        nom VARCHAR(191) NOT NULL,
+        description TEXT NULL,
+        type VARCHAR(20) NOT NULL DEFAULT 'lien',
+        url VARCHAR(500) NULL,
+        icone VARCHAR(50) NOT NULL DEFAULT 'info',
+        admin_uniquement TINYINT(1) NOT NULL DEFAULT 0,
+        ordre INT NOT NULL DEFAULT 0,
+        actif TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $tileCount = (int)$pdo->query('SELECT COUNT(*) c FROM tiles')->fetch()['c'];
+    if ($tileCount === 0) {
+        $pdo->exec("INSERT INTO tiles (nom, description, type, icone, admin_uniquement, ordre, actif) VALUES
+            ('Questionnaires', 'Passer un questionnaire d\\'entraînement ou d\\'examen', 'questionnaire', 'target', 0, 1, 1)");
+    }
+
     return $pdo;
 }

@@ -1,39 +1,32 @@
 <?php
 require_once __DIR__ . '/../includes/session-config.php';
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../includes/db.php';
 
 // ===================================================================
-// Compte admin unique stocké dans data/credentials.json, créé lors de
-// la première connexion. La gestion multi-comptes viendra plus tard.
+// Authentification unifiée : un seul point d'entrée (login) pour tous
+// les utilisateurs de l'application. Le rôle ('admin' ou 'user') est
+// stocké en session et détermine l'accès à l'espace d'administration
+// et aux tuiles réservées.
 // ===================================================================
-$CREDENTIALS_FILE = __DIR__ . '/../data/credentials.json';
-
-function qa_credentials_configured($file) {
-    return file_exists($file);
-}
-
-function qa_read_credentials($file) {
-    $data = json_decode(file_get_contents($file), true);
-    return is_array($data) ? $data : null;
-}
 
 header('Content-Type: application/json');
-
-if (!is_dir(dirname($CREDENTIALS_FILE))) {
-    mkdir(dirname($CREDENTIALS_FILE), 0700, true);
-}
-
+$pdo = get_db();
 $action = $_POST['action'] ?? '';
 
+function qa_users_count($pdo) {
+    return (int)$pdo->query('SELECT COUNT(*) c FROM users')->fetch()['c'];
+}
+
 if ($action === 'status') {
-    echo json_encode(['configured' => qa_credentials_configured($CREDENTIALS_FILE)]);
+    echo json_encode(['configured' => qa_users_count($pdo) > 0]);
     exit;
 }
 
 if ($action === 'setup') {
-    if (qa_credentials_configured($CREDENTIALS_FILE)) {
+    if (qa_users_count($pdo) > 0) {
         http_response_code(409);
-        echo json_encode(['success' => false, 'message' => 'Un compte admin est déjà configuré']);
+        echo json_encode(['success' => false, 'message' => 'Un compte est déjà configuré']);
         exit;
     }
 
@@ -51,40 +44,35 @@ if ($action === 'setup') {
         exit;
     }
 
-    $credentials = [
-        'username' => $username,
-        'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-    ];
+    $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif) VALUES (?, ?, ?, 1)');
+    $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), 'admin']);
 
-    $written = file_put_contents($CREDENTIALS_FILE, json_encode($credentials, JSON_PRETTY_PRINT), LOCK_EX);
-    if ($written === false) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'message' => "Impossible d'enregistrer les identifiants"]);
-        exit;
-    }
-    chmod($CREDENTIALS_FILE, 0600);
-
-    $_SESSION['admin_authenticated'] = true;
-    $_SESSION['admin_username'] = $username;
-    echo json_encode(['success' => true]);
+    $_SESSION['user_id'] = (int)$pdo->lastInsertId();
+    $_SESSION['username'] = $username;
+    $_SESSION['role'] = 'admin';
+    echo json_encode(['success' => true, 'role' => 'admin']);
     exit;
 }
 
 if ($action === 'login') {
-    if (!qa_credentials_configured($CREDENTIALS_FILE)) {
+    if (qa_users_count($pdo) === 0) {
         http_response_code(409);
         echo json_encode(['success' => false, 'message' => 'Aucun compte configuré', 'setup_required' => true]);
         exit;
     }
 
-    $credentials = qa_read_credentials($CREDENTIALS_FILE);
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($credentials && hash_equals($credentials['username'], $username) && password_verify($password, $credentials['password_hash'])) {
-        $_SESSION['admin_authenticated'] = true;
-        $_SESSION['admin_username'] = $username;
-        echo json_encode(['success' => true]);
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? AND actif = 1');
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password_hash'])) {
+        $_SESSION['user_id'] = (int)$user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'];
+        echo json_encode(['success' => true, 'role' => $user['role']]);
     } else {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Identifiant ou mot de passe incorrect']);
@@ -100,7 +88,15 @@ if ($action === 'logout') {
 }
 
 if ($action === 'check') {
-    echo json_encode(['authenticated' => isset($_SESSION['admin_authenticated']) && $_SESSION['admin_authenticated'] === true]);
+    if (!empty($_SESSION['user_id'])) {
+        echo json_encode([
+            'authenticated' => true,
+            'username' => $_SESSION['username'],
+            'role' => $_SESSION['role'],
+        ]);
+    } else {
+        echo json_encode(['authenticated' => false]);
+    }
     exit;
 }
 

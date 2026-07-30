@@ -1,6 +1,8 @@
 <?php
+require_once __DIR__ . '/../includes/require_user.php';
 require_once __DIR__ . '/../includes/db.php';
 
+require_user();
 header('Content-Type: application/json');
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -171,13 +173,7 @@ if ($action === 'quizzes') {
 
 if ($action === 'start') {
     $quizId = (int)($_POST['quiz_id'] ?? 0);
-    $candidat = trim($_POST['candidat'] ?? '');
-
-    if ($candidat === '') {
-        http_response_code(422);
-        echo json_encode(['success' => false, 'message' => 'Merci de renseigner votre nom']);
-        exit;
-    }
+    $candidat = $_SESSION['username'];
 
     $stmt = $pdo->prepare('SELECT * FROM quizzes WHERE id=? AND actif=1');
     $stmt->execute([$quizId]);

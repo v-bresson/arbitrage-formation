@@ -6,23 +6,13 @@
 // ===================================================================
 
 const screens = {
-    setup: document.getElementById('setup-screen'),
-    login: document.getElementById('login-screen'),
+    denied: document.getElementById('denied-screen'),
     admin: document.getElementById('admin-screen'),
-};
-
-const pageBrand = document.getElementById('page-brand');
-const pageBrandSubtitle = document.getElementById('page-brand-subtitle');
-const PAGE_BRAND_SUBTITLES = {
-    setup: 'Première connexion admin — crée ton compte',
-    login: 'Administration',
 };
 
 function showScreen(name) {
     Object.values(screens).forEach(s => s.classList.add('hidden'));
     screens[name].classList.remove('hidden');
-    pageBrand.classList.toggle('hidden', name === 'admin');
-    if (PAGE_BRAND_SUBTITLES[name]) pageBrandSubtitle.textContent = PAGE_BRAND_SUBTITLES[name];
 }
 
 function escapeHtml(str) {
@@ -39,85 +29,30 @@ let questions = [];
 let quizzes = [];
 
 // ---------- Session / connexion ----------
+// L'authentification se fait sur la page de connexion générale
+// (../index.php) : ici on vérifie juste la session et le rôle.
 async function checkSession() {
     try {
-        const statusRes = await fetch('../api/auth.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'action=status',
-        });
-        const statusData = await statusRes.json();
-        if (!statusData.configured) { showScreen('setup'); return; }
-
         const res = await fetch('../api/auth.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'action=check',
         });
         const data = await res.json();
-        if (data.authenticated) {
-            showScreen('admin');
-            initAdmin();
-        } else {
-            showScreen('login');
+        if (!data.authenticated) {
+            window.location.href = '../index.php';
+            return;
         }
+        if (data.role !== 'admin') {
+            showScreen('denied');
+            return;
+        }
+        showScreen('admin');
+        initAdmin();
     } catch (err) {
-        showScreen('login');
+        window.location.href = '../index.php';
     }
 }
-
-document.getElementById('setup-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('setup-username-input').value;
-    const password = document.getElementById('setup-password-input').value;
-    const confirmPwd = document.getElementById('setup-password-confirm-input').value;
-    const errorEl = document.getElementById('setup-error');
-    errorEl.textContent = '';
-
-    if (password !== confirmPwd) { errorEl.textContent = 'Les mots de passe ne correspondent pas'; return; }
-
-    const btn = document.getElementById('setup-btn');
-    btn.disabled = true;
-    try {
-        const res = await fetch('../api/auth.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `action=setup&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-        });
-        const data = await res.json();
-        if (data.success) { showScreen('admin'); initAdmin(); }
-        else errorEl.textContent = data.message || 'Impossible de créer le compte';
-    } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
-    } finally {
-        btn.disabled = false;
-    }
-});
-
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('username-input').value;
-    const password = document.getElementById('password-input').value;
-    const errorEl = document.getElementById('login-error');
-    errorEl.textContent = '';
-
-    const btn = document.getElementById('login-btn');
-    btn.disabled = true;
-    try {
-        const res = await fetch('../api/auth.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-        });
-        const data = await res.json();
-        if (data.success) { showScreen('admin'); initAdmin(); }
-        else errorEl.textContent = data.message || 'Identifiant ou mot de passe incorrect';
-    } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
-    } finally {
-        btn.disabled = false;
-    }
-});
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
     try {
@@ -127,7 +62,7 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
             body: 'action=logout',
         });
     } catch (err) { /* on déconnecte quand même côté écran */ }
-    showScreen('login');
+    window.location.href = '../index.php';
 });
 
 // ---------- Onglets ----------
@@ -139,6 +74,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
         if (btn.dataset.tab === 'quizzes') loadQuizzes();
         if (btn.dataset.tab === 'attempts') loadAttempts();
+        if (btn.dataset.tab === 'tiles') loadTilesAdmin();
+        if (btn.dataset.tab === 'users') loadUsers();
     });
 });
 
@@ -659,6 +596,265 @@ async function loadAttempts() {
         }).join('');
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erreur de chargement des résultats</td></tr>`;
+    }
+}
+
+// ================= TUILES (DASHBOARD) =================
+let tiles = [];
+const TILE_TYPE_LABELS = { questionnaire: 'Questionnaires (module intégré)', lien: 'Lien' };
+
+async function loadTilesAdmin() {
+    const grid = document.getElementById('tiles-admin-grid');
+    const msg = document.getElementById('tiles-admin-msg');
+    try {
+        const res = await fetch('../api/tiles.php?action=list_admin');
+        tiles = await res.json();
+
+        if (!tiles.length) {
+            grid.innerHTML = '';
+            msg.textContent = 'Aucune tuile configurée.';
+            return;
+        }
+        msg.textContent = '';
+        grid.innerHTML = tiles.map(t => `
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <h2>${escapeHtml(t.nom)}</h2>
+                    <span class="pill">${TILE_TYPE_LABELS[t.type] || t.type}</span>
+                </div>
+                <p>${escapeHtml(t.description || '')}</p>
+                <div class="meta">
+                    <span class="pill">Ordre : ${t.ordre}</span>
+                    ${t.admin_uniquement ? '<span class="pill warn">Réservée admin</span>' : ''}
+                    <span class="pill ${t.actif ? 'ok' : ''}">${t.actif ? 'Active' : 'Inactive'}</span>
+                </div>
+                <div class="row-actions" style="margin-top:8px;">
+                    <button type="button" class="secondary edit-tile-btn" data-id="${t.id}">Modifier</button>
+                    <button type="button" class="danger delete-tile-btn" data-id="${t.id}">Supprimer</button>
+                </div>
+            </div>
+        `).join('');
+
+        grid.querySelectorAll('.edit-tile-btn').forEach(btn => btn.addEventListener('click', () => openTileModal(btn.dataset.id)));
+        grid.querySelectorAll('.delete-tile-btn').forEach(btn => btn.addEventListener('click', () => deleteTile(btn.dataset.id)));
+    } catch (err) {
+        msg.textContent = 'Erreur de chargement des tuiles';
+    }
+}
+
+const tileModal = document.getElementById('tile-modal-overlay');
+const tileForm = document.getElementById('tile-form');
+const tileTypeSelect = document.getElementById('tile-type');
+
+function updateTileTypeFields() {
+    document.getElementById('tile-url-field').classList.toggle('hidden', tileTypeSelect.value !== 'lien');
+}
+tileTypeSelect.addEventListener('change', updateTileTypeFields);
+
+function openTileModal(id) {
+    const modalMsg = document.getElementById('tile-modal-msg');
+    modalMsg.textContent = '';
+    tileForm.reset();
+    document.getElementById('tile-id').value = '';
+    document.getElementById('tile-type').value = 'lien';
+    document.getElementById('tile-icone').value = 'info';
+    document.getElementById('tile-ordre').value = 0;
+    document.getElementById('tile-admin-uniquement').checked = false;
+    document.getElementById('tile-actif').checked = true;
+    document.getElementById('tile-modal-title').textContent = 'Nouvelle tuile';
+
+    if (id) {
+        const t = tiles.find(x => String(x.id) === String(id));
+        if (t) {
+            document.getElementById('tile-modal-title').textContent = 'Modifier la tuile';
+            document.getElementById('tile-id').value = t.id;
+            document.getElementById('tile-nom').value = t.nom;
+            document.getElementById('tile-desc').value = t.description || '';
+            document.getElementById('tile-type').value = t.type;
+            document.getElementById('tile-url').value = t.url || '';
+            document.getElementById('tile-icone').value = t.icone;
+            document.getElementById('tile-admin-uniquement').checked = t.admin_uniquement;
+            document.getElementById('tile-ordre').value = t.ordre;
+            document.getElementById('tile-actif').checked = t.actif;
+        }
+    }
+    updateTileTypeFields();
+    tileModal.classList.remove('hidden');
+}
+
+document.getElementById('new-tile-btn').addEventListener('click', () => openTileModal(null));
+document.getElementById('tile-cancel-btn').addEventListener('click', () => tileModal.classList.add('hidden'));
+tileModal.addEventListener('click', e => { if (e.target === tileModal) tileModal.classList.add('hidden'); });
+
+tileForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const modalMsg = document.getElementById('tile-modal-msg');
+    modalMsg.textContent = '';
+    const saveBtn = document.getElementById('tile-save-btn');
+    saveBtn.disabled = true;
+
+    const payload = {
+        id: document.getElementById('tile-id').value || null,
+        nom: document.getElementById('tile-nom').value,
+        description: document.getElementById('tile-desc').value,
+        type: document.getElementById('tile-type').value,
+        url: document.getElementById('tile-url').value,
+        icone: document.getElementById('tile-icone').value,
+        admin_uniquement: document.getElementById('tile-admin-uniquement').checked,
+        ordre: parseInt(document.getElementById('tile-ordre').value, 10) || 0,
+        actif: document.getElementById('tile-actif').checked,
+    };
+
+    try {
+        const res = await fetch('../api/tiles.php?action=save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            tileModal.classList.add('hidden');
+            await loadTilesAdmin();
+        } else {
+            modalMsg.textContent = data.message || "Erreur lors de l'enregistrement";
+        }
+    } catch (err) {
+        modalMsg.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        saveBtn.disabled = false;
+    }
+});
+
+async function deleteTile(id) {
+    if (!confirm('Supprimer cette tuile du dashboard ?')) return;
+    try {
+        const res = await fetch('../api/tiles.php?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (data.success) await loadTilesAdmin();
+    } catch (err) {
+        document.getElementById('tiles-admin-msg').textContent = 'Erreur de connexion au serveur';
+    }
+}
+
+// ================= UTILISATEURS =================
+let users = [];
+
+async function loadUsers() {
+    const tbody = document.getElementById('users-tbody');
+    try {
+        const res = await fetch('../api/users.php?action=list');
+        users = await res.json();
+
+        if (!users.length) {
+            tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-secondary);">Aucun utilisateur.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = users.map(u => `
+            <tr>
+                <td>${escapeHtml(u.username)}</td>
+                <td><span class="pill ${u.role === 'admin' ? 'warn' : ''}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
+                <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
+                <td>${escapeHtml(u.created_at)}</td>
+                <td class="row-actions">
+                    <button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button>
+                    <button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>
+                </td>
+            </tr>
+        `).join('');
+
+        tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
+        tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);">Erreur de chargement des utilisateurs</td></tr>`;
+    }
+}
+
+const userModal = document.getElementById('user-modal-overlay');
+const userForm = document.getElementById('user-form');
+
+function openUserModal(id) {
+    const modalMsg = document.getElementById('user-modal-msg');
+    modalMsg.textContent = '';
+    userForm.reset();
+    document.getElementById('user-id').value = '';
+    document.getElementById('user-role').value = 'user';
+    document.getElementById('user-actif').checked = true;
+    document.getElementById('user-password').required = true;
+    document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
+    document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
+
+    if (id) {
+        const u = users.find(x => String(x.id) === String(id));
+        if (u) {
+            document.getElementById('user-modal-title').textContent = "Modifier l'utilisateur";
+            document.getElementById('user-id').value = u.id;
+            document.getElementById('user-username').value = u.username;
+            document.getElementById('user-role').value = u.role;
+            document.getElementById('user-actif').checked = u.actif;
+            document.getElementById('user-password').required = false;
+            document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
+        }
+    }
+    userModal.classList.remove('hidden');
+}
+
+document.getElementById('new-user-btn').addEventListener('click', () => openUserModal(null));
+document.getElementById('user-cancel-btn').addEventListener('click', () => userModal.classList.add('hidden'));
+userModal.addEventListener('click', e => { if (e.target === userModal) userModal.classList.add('hidden'); });
+
+userForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const modalMsg = document.getElementById('user-modal-msg');
+    modalMsg.textContent = '';
+    const saveBtn = document.getElementById('user-save-btn');
+    saveBtn.disabled = true;
+
+    const payload = {
+        id: document.getElementById('user-id').value || null,
+        username: document.getElementById('user-username').value,
+        password: document.getElementById('user-password').value,
+        role: document.getElementById('user-role').value,
+        actif: document.getElementById('user-actif').checked,
+    };
+
+    try {
+        const res = await fetch('../api/users.php?action=save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            userModal.classList.add('hidden');
+            await loadUsers();
+        } else {
+            modalMsg.textContent = data.message || "Erreur lors de l'enregistrement";
+        }
+    } catch (err) {
+        modalMsg.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        saveBtn.disabled = false;
+    }
+});
+
+async function deleteUser(id) {
+    if (!confirm('Supprimer définitivement cet utilisateur ?')) return;
+    try {
+        const res = await fetch('../api/users.php?action=delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (data.success) await loadUsers();
+        else document.getElementById('users-msg').textContent = data.message || 'Erreur lors de la suppression';
+    } catch (err) {
+        document.getElementById('users-msg').textContent = 'Erreur de connexion au serveur';
     }
 }
 

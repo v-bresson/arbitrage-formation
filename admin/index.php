@@ -8,31 +8,13 @@
 </head>
 <body>
 
-<div class="brand" id="page-brand">
-    <img src="../assets/logo.png" alt="ArcheryOps Judging">
-    <p class="subtitle" id="page-brand-subtitle">Administration</p>
-</div>
-
-<!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
-<div id="setup-screen" class="page hidden">
-    <form class="panel" id="setup-form">
-        <input type="text" id="setup-username-input" placeholder="Identifiant" autocomplete="username" required autofocus minlength="3">
-        <input type="password" id="setup-password-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="new-password" required minlength="8">
-        <input type="password" id="setup-password-confirm-input" placeholder="Confirme le mot de passe" autocomplete="new-password" required minlength="8">
-        <button type="submit" id="setup-btn">Créer le compte admin</button>
-        <div class="msg error" id="setup-error"></div>
-    </form>
-</div>
-
-<!-- ================= ECRAN DE CONNEXION ================= -->
-<div id="login-screen" class="page hidden">
-    <form class="panel" id="login-form">
-        <input type="text" id="username-input" placeholder="Identifiant" autocomplete="username" required autofocus>
-        <input type="password" id="password-input" placeholder="Mot de passe" autocomplete="current-password" required>
-        <button type="submit" id="login-btn">Se connecter</button>
-        <div class="msg error" id="login-error"></div>
-    </form>
-    <p style="margin-top:16px;"><a href="../index.php">&larr; Retour à l'espace candidat</a></p>
+<!-- ================= ACCES REFUSE ================= -->
+<div id="denied-screen" class="page hidden">
+    <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"></div>
+    <div class="panel" style="align-items:center;text-align:center;">
+        <p>Cet espace est réservé aux administrateurs.</p>
+        <a href="../dashboard.php" class="btn" style="margin-top:10px;">Retour au dashboard</a>
+    </div>
 </div>
 
 <!-- ================= DASHBOARD ADMIN ================= -->
@@ -46,7 +28,10 @@
                 <button type="button" class="tab-btn active" data-tab="questions">Questions</button>
                 <button type="button" class="tab-btn" data-tab="quizzes">Questionnaires</button>
                 <button type="button" class="tab-btn" data-tab="attempts">Résultats</button>
+                <button type="button" class="tab-btn" data-tab="tiles">Tuiles</button>
+                <button type="button" class="tab-btn" data-tab="users">Utilisateurs</button>
             </div>
+            <a href="../dashboard.php" class="secondary btn">Dashboard</a>
             <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
         </div>
     </div>
@@ -86,6 +71,30 @@
                 <tbody id="attempts-tbody"></tbody>
             </table>
         </div>
+    </div>
+
+    <!-- ---------- ONGLET TUILES ---------- -->
+    <div id="tab-tiles" class="tab-panel hidden">
+        <p class="modal-hint" style="margin-bottom:16px;">Les tuiles s'affichent sur le dashboard de tous les utilisateurs connectés (sauf celles réservées aux admins). La tuile "Questionnaires" donne accès au module de questionnaires intégré ; les autres peuvent pointer vers un lien (futur module ArcheryOps, ou URL externe).</p>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+            <button type="button" id="new-tile-btn">+ Nouvelle tuile</button>
+        </div>
+        <div class="grid" id="tiles-admin-grid"></div>
+        <p class="msg" id="tiles-admin-msg"></p>
+    </div>
+
+    <!-- ---------- ONGLET UTILISATEURS ---------- -->
+    <div id="tab-users" class="tab-panel hidden">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+            <button type="button" id="new-user-btn">+ Nouvel utilisateur</button>
+        </div>
+        <div class="table-wrap panel" style="padding:0;">
+            <table>
+                <thead><tr><th>Identifiant</th><th>Rôle</th><th>Actif</th><th>Créé le</th><th></th></tr></thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+        <p class="msg" id="users-msg"></p>
     </div>
 </div>
 
@@ -223,6 +232,73 @@
                 <button type="submit" id="quiz-save-btn">Enregistrer</button>
             </div>
             <div class="msg error" id="quiz-modal-msg"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODALE TUILE ================= -->
+<div id="tile-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2 id="tile-modal-title">Nouvelle tuile</h2>
+        <form id="tile-form" style="display:flex;flex-direction:column;gap:12px;">
+            <input type="hidden" id="tile-id">
+            <div class="field"><label>Nom</label><input type="text" id="tile-nom" required></div>
+            <div class="field"><label>Description</label><textarea id="tile-desc" rows="2"></textarea></div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Type</label>
+                    <select id="tile-type">
+                        <option value="questionnaire">Questionnaires (module intégré)</option>
+                        <option value="lien">Lien (URL)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Icône</label>
+                    <select id="tile-icone">
+                        <option value="target">Cible</option>
+                        <option value="trophy">Trophée</option>
+                        <option value="clipboard">Presse-papier</option>
+                        <option value="users">Utilisateurs</option>
+                        <option value="lock">Cadenas</option>
+                        <option value="wifi">Wifi</option>
+                        <option value="info">Info</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field" id="tile-url-field"><label>URL</label><input type="text" id="tile-url" placeholder="https:// ou /chemin"></div>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="tile-admin-uniquement" style="width:auto;"> Réservée aux administrateurs</label>
+            <div class="field"><label>Ordre d'affichage</label><input type="number" id="tile-ordre" value="0"></div>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="tile-actif" style="width:auto;" checked> Tuile active</label>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="tile-cancel-btn">Annuler</button>
+                <button type="submit" id="tile-save-btn">Enregistrer</button>
+            </div>
+            <div class="msg error" id="tile-modal-msg"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODALE UTILISATEUR ================= -->
+<div id="user-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+        <h2 id="user-modal-title">Nouvel utilisateur</h2>
+        <form id="user-form" style="display:flex;flex-direction:column;gap:12px;">
+            <input type="hidden" id="user-id">
+            <div class="field"><label>Identifiant</label><input type="text" id="user-username" required minlength="3"></div>
+            <div class="field"><label id="user-password-label">Mot de passe (8 caractères min.)</label><input type="password" id="user-password" autocomplete="new-password"></div>
+            <div class="field">
+                <label>Rôle</label>
+                <select id="user-role">
+                    <option value="user">Utilisateur</option>
+                    <option value="admin">Administrateur</option>
+                </select>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="user-actif" style="width:auto;" checked> Compte actif</label>
+            <div class="modal-actions">
+                <button type="button" class="secondary" id="user-cancel-btn">Annuler</button>
+                <button type="submit" id="user-save-btn">Enregistrer</button>
+            </div>
+            <div class="msg error" id="user-modal-msg"></div>
         </form>
     </div>
 </div>

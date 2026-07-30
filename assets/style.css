@@ -108,6 +108,8 @@ button, .btn {
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
     transition: opacity 0.2s ease, transform 0.15s ease;
 }
 

@@ -3,80 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcheryOps Judging — Questionnaires</title>
+<title>ArcheryOps Judging — Connexion</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
 <div class="brand">
     <img src="assets/logo.png" alt="ArcheryOps Judging">
-    <p class="subtitle">Validation de la formation d'arbitre assistant</p>
+    <p class="subtitle" id="page-brand-subtitle">Connexion</p>
 </div>
 
-<!-- ================= LISTE DES QUESTIONNAIRES ================= -->
-<div id="list-screen" class="page wide hidden">
-    <div class="grid" id="quiz-grid"></div>
-    <p class="msg" id="list-msg" style="text-align:center;margin-top:20px;"></p>
+<!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
+<div id="setup-screen" class="page hidden">
+    <form class="panel" id="setup-form">
+        <input type="text" id="setup-username-input" placeholder="Identifiant" autocomplete="username" required autofocus minlength="3">
+        <input type="password" id="setup-password-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="new-password" required minlength="8">
+        <input type="password" id="setup-password-confirm-input" placeholder="Confirme le mot de passe" autocomplete="new-password" required minlength="8">
+        <button type="submit" id="setup-btn">Créer le compte administrateur</button>
+        <div class="msg error" id="setup-error"></div>
+    </form>
 </div>
 
-<!-- ================= ECRAN DE DEMARRAGE ================= -->
-<div id="start-screen" class="page hidden">
-    <div class="panel">
-        <h2 id="start-quiz-name"></h2>
-        <p id="start-quiz-desc" style="color:var(--text-secondary);font-size:0.9rem;"></p>
-        <div class="meta" id="start-quiz-meta" style="margin-bottom:6px;"></div>
-        <form id="start-form" class="field">
-            <label for="candidat-input">Votre nom et prénom</label>
-            <input type="text" id="candidat-input" placeholder="Nom Prénom" required autofocus>
-            <div style="display:flex;gap:10px;margin-top:10px;">
-                <button type="button" class="secondary" id="back-to-list-btn">Retour</button>
-                <button type="submit" id="start-btn" style="flex:1;">Commencer le questionnaire</button>
-            </div>
-            <div class="msg error" id="start-error"></div>
-        </form>
-    </div>
-</div>
-
-<!-- ================= ECRAN QUESTIONNAIRE ================= -->
-<div id="quiz-screen" class="page wide hidden">
-    <div id="timer-bar" class="timer-bar hidden">
-        <span id="timer-label">Temps restant</span>
-        <span id="timer-value">--:--</span>
-    </div>
-    <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
-    <div id="questions-container"></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
-        <button type="button" id="submit-quiz-btn">Valider mes réponses</button>
-    </div>
-    <p class="msg error" id="quiz-error"></p>
-</div>
-
-<!-- ================= ECRAN RESULTAT ================= -->
-<div id="result-screen" class="page hidden">
-    <div class="panel" style="text-align:center;align-items:center;">
-        <div id="result-with-score">
-            <p style="color:var(--text-secondary);">Votre note</p>
-            <div class="result-score" id="result-score">-</div>
-            <p id="result-detail" style="color:var(--text-secondary);"></p>
-            <div class="pill" id="result-pill" style="font-size:0.95rem;padding:8px 18px;"></div>
-        </div>
-        <div id="result-no-score" class="hidden">
-            <p style="font-size:1.1rem;margin-bottom:8px;">Vos réponses ont bien été enregistrées.</p>
-            <p style="color:var(--text-secondary);">Le résultat de ce questionnaire ne s'affiche pas immédiatement et vous sera communiqué séparément.</p>
-        </div>
-        <p class="msg error" id="result-expired-msg"></p>
-        <button type="button" id="back-home-btn" style="margin-top:16px;">Retour à l'accueil</button>
-    </div>
+<!-- ================= ECRAN DE CONNEXION ================= -->
+<div id="login-screen" class="page hidden">
+    <form class="panel" id="login-form">
+        <input type="text" id="username-input" placeholder="Identifiant" autocomplete="username" required autofocus>
+        <input type="password" id="password-input" placeholder="Mot de passe" autocomplete="current-password" required>
+        <button type="submit" id="login-btn">Se connecter</button>
+        <div class="msg error" id="login-error"></div>
+    </form>
 </div>
 
 <footer>&copy; <span id="year"></span> ArcheryOps Judging</footer>
 
 <script>
 const screens = {
-    list: document.getElementById('list-screen'),
-    start: document.getElementById('start-screen'),
-    quiz: document.getElementById('quiz-screen'),
-    result: document.getElementById('result-screen'),
+    setup: document.getElementById('setup-screen'),
+    login: document.getElementById('login-screen'),
 };
 
 function showScreen(name) {
@@ -84,280 +47,106 @@ function showScreen(name) {
     screens[name].classList.remove('hidden');
 }
 
-function escapeHtml(str) {
-    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-let currentQuiz = null;
-let currentQuestions = [];
-let answers = {};
-let tentativeId = null;
-let timerInterval = null;
-let deadlineTs = null;
-
-async function loadQuizList() {
-    const grid = document.getElementById('quiz-grid');
-    const msg = document.getElementById('list-msg');
+async function checkSession() {
     try {
-        const res = await fetch('api/attempt.php?action=quizzes');
-        const quizzes = await res.json();
-
-        if (!quizzes.length) {
-            msg.textContent = "Aucun questionnaire n'est disponible pour le moment.";
-            grid.innerHTML = '';
+        const statusRes = await fetch('api/auth.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=status',
+        });
+        const statusData = await statusRes.json();
+        if (!statusData.configured) {
+            document.getElementById('page-brand-subtitle').textContent = 'Première connexion — crée le compte administrateur';
+            showScreen('setup');
             return;
         }
 
-        msg.textContent = '';
-        grid.innerHTML = quizzes.map(q => {
-            const closed = !!q.ferme;
-            const notEnough = !q.suffisant;
-            const disabled = closed || notEnough;
-            let btnLabel = 'Démarrer';
-            if (closed) btnLabel = q.ferme;
-            else if (notEnough) btnLabel = 'Pas assez de questions';
-
-            return `
-            <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                    <h2>${escapeHtml(q.nom)}</h2>
-                    <span class="pill ${q.type === 'examen' ? 'warn' : 'ok'}">${q.type === 'examen' ? 'Examen' : 'Entraînement'}</span>
-                </div>
-                <p>${escapeHtml(q.description || '')}</p>
-                <div class="meta">
-                    <span class="pill">${q.nombre_questions} question(s)</span>
-                    <span class="pill">Note sur ${q.note_max}</span>
-                    <span class="pill">Seuil de réussite : ${q.seuil_reussite}</span>
-                    ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
-                    ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
-                </div>
-                <button type="button" class="start-quiz-btn" data-id="${q.id}" data-nom="${escapeHtml(q.nom)}" data-desc="${escapeHtml(q.description || '')}" data-type="${q.type}" data-duree="${q.duree_minutes || ''}" data-tentatives="${q.tentatives_max || ''}" ${disabled ? 'disabled' : ''}>
-                    ${btnLabel}
-                </button>
-            </div>
-        `;
-        }).join('');
-
-        grid.querySelectorAll('.start-quiz-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                currentQuiz = {
-                    id: btn.dataset.id, nom: btn.dataset.nom, desc: btn.dataset.desc,
-                    type: btn.dataset.type, duree: btn.dataset.duree, tentatives: btn.dataset.tentatives,
-                };
-                document.getElementById('start-quiz-name').textContent = currentQuiz.nom;
-                document.getElementById('start-quiz-desc').textContent = currentQuiz.desc;
-                const metaEl = document.getElementById('start-quiz-meta');
-                let metaHtml = `<span class="pill ${currentQuiz.type === 'examen' ? 'warn' : 'ok'}">${currentQuiz.type === 'examen' ? 'Examen' : 'Entraînement'}</span>`;
-                if (currentQuiz.duree) metaHtml += `<span class="pill">${currentQuiz.duree} min chrono</span>`;
-                if (currentQuiz.tentatives) metaHtml += `<span class="pill">${currentQuiz.tentatives} tentative(s) max</span>`;
-                metaEl.innerHTML = metaHtml;
-                document.getElementById('start-error').textContent = '';
-                showScreen('start');
-            });
+        const res = await fetch('api/auth.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=check',
         });
+        const data = await res.json();
+        if (data.authenticated) {
+            window.location.href = 'dashboard.php';
+        } else {
+            showScreen('login');
+        }
     } catch (err) {
-        msg.textContent = 'Erreur de connexion au serveur';
+        showScreen('login');
     }
 }
 
-document.getElementById('back-to-list-btn').addEventListener('click', () => showScreen('list'));
-document.getElementById('back-home-btn').addEventListener('click', () => { showScreen('list'); loadQuizList(); });
-
-document.getElementById('start-form').addEventListener('submit', async (e) => {
+document.getElementById('setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const startBtn = document.getElementById('start-btn');
-    const candidat = document.getElementById('candidat-input').value;
-    const errorEl = document.getElementById('start-error');
+    const username = document.getElementById('setup-username-input').value;
+    const password = document.getElementById('setup-password-input').value;
+    const passwordConfirm = document.getElementById('setup-password-confirm-input').value;
+    const errorEl = document.getElementById('setup-error');
     errorEl.textContent = '';
-    startBtn.disabled = true;
-    startBtn.textContent = 'Chargement...';
 
-    try {
-        const res = await fetch('api/attempt.php?action=start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `quiz_id=${encodeURIComponent(currentQuiz.id)}&candidat=${encodeURIComponent(candidat)}`,
-        });
-        const data = await res.json();
-        if (data.success) {
-            currentQuestions = data.questions;
-            tentativeId = data.tentative_id;
-            answers = {};
-            renderQuestions();
-            setupTimer(data.started_at, data.duree_minutes);
-            showScreen('quiz');
-        } else {
-            errorEl.textContent = data.message || 'Impossible de démarrer le questionnaire';
-        }
-    } catch (err) {
-        errorEl.textContent = 'Erreur de connexion au serveur';
-    } finally {
-        startBtn.disabled = false;
-        startBtn.textContent = 'Commencer le questionnaire';
-    }
-});
-
-// ---------- Minuteur ----------
-function setupTimer(startedAt, dureeMinutes) {
-    const bar = document.getElementById('timer-bar');
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-
-    if (!dureeMinutes) {
-        bar.classList.add('hidden');
-        deadlineTs = null;
+    if (password !== passwordConfirm) {
+        errorEl.textContent = 'Les mots de passe ne correspondent pas';
         return;
     }
 
-    // startedAt est une date serveur "YYYY-MM-DD HH:MM:SS" ; on la traite comme
-    // heure locale (le serveur et les candidats sont sur le même fuseau).
-    const startTs = new Date(startedAt.replace(' ', 'T')).getTime();
-    deadlineTs = startTs + dureeMinutes * 60 * 1000;
-    bar.classList.remove('hidden');
-
-    const tick = () => {
-        const remainingMs = deadlineTs - Date.now();
-        if (remainingMs <= 0) {
-            document.getElementById('timer-value').textContent = '00:00';
-            clearInterval(timerInterval);
-            timerInterval = null;
-            submitQuiz(true);
-            return;
-        }
-        const totalSec = Math.floor(remainingMs / 1000);
-        const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
-        const sec = String(totalSec % 60).padStart(2, '0');
-        document.getElementById('timer-value').textContent = `${min}:${sec}`;
-        document.getElementById('timer-bar').classList.toggle('urgent', totalSec <= 60);
-    };
-    tick();
-    timerInterval = setInterval(tick, 1000);
-}
-
-function updateProgress() {
-    const answered = Object.keys(answers).length;
-    const pct = currentQuestions.length ? (answered / currentQuestions.length) * 100 : 0;
-    document.getElementById('progress-fill').style.width = pct + '%';
-}
-
-function renderQuestions() {
-    const container = document.getElementById('questions-container');
-    container.innerHTML = currentQuestions.map((q, i) => {
-        const image = q.image ? `<img src="${escapeHtml(q.image)}" alt="" class="question-image">` : '';
-        let body = '';
-
-        if (q.type === 'qcm_multiple') {
-            body = Object.entries(q.options).map(([key, text]) => `
-                <label class="option-label" data-qid="${q.id}" data-key="${key}">
-                    <input type="checkbox" name="q-${q.id}" value="${key}">
-                    <span>${escapeHtml(text)}</span>
-                </label>
-            `).join('');
-        } else if (q.type === 'ouverte') {
-            body = `<textarea class="open-answer" data-qid="${q.id}" rows="4" placeholder="Votre réponse..."></textarea>`;
-        } else {
-            body = Object.entries(q.options).map(([key, text]) => `
-                <label class="option-label" data-qid="${q.id}" data-key="${key}">
-                    <input type="radio" name="q-${q.id}" value="${key}">
-                    <span>${escapeHtml(text)}</span>
-                </label>
-            `).join('');
-        }
-
-        return `
-        <div class="question-block">
-            <h3>${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span>${q.type === 'qcm_multiple' ? '<span class="pill warn">Réponses multiples</span>' : ''}</h3>
-            ${image}
-            ${body}
-        </div>
-    `;
-    }).join('');
-
-    container.querySelectorAll('.option-label[data-key]').forEach(label => {
-        const input = label.querySelector('input');
-        input.addEventListener('change', () => {
-            const qid = label.dataset.qid;
-            if (input.type === 'radio') {
-                answers[qid] = input.value;
-                container.querySelectorAll(`.option-label[data-qid="${qid}"]`).forEach(l => l.classList.remove('selected'));
-                label.classList.add('selected');
-            } else {
-                const checked = Array.from(container.querySelectorAll(`.option-label[data-qid="${qid}"] input:checked`)).map(i => i.value);
-                answers[qid] = checked;
-                label.classList.toggle('selected', input.checked);
-            }
-            updateProgress();
-        });
-    });
-
-    container.querySelectorAll('.open-answer').forEach(textarea => {
-        textarea.addEventListener('input', () => {
-            const qid = textarea.dataset.qid;
-            if (textarea.value.trim() !== '') answers[qid] = textarea.value;
-            else delete answers[qid];
-            updateProgress();
-        });
-    });
-
-    updateProgress();
-}
-
-async function submitQuiz(auto) {
-    const errorEl = document.getElementById('quiz-error');
-    errorEl.textContent = '';
-
-    if (!auto && Object.keys(answers).length < currentQuestions.length) {
-        if (!confirm('Certaines questions sont sans réponse. Valider quand même ?')) return;
-    }
-
-    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-
-    const btn = document.getElementById('submit-quiz-btn');
+    const btn = document.getElementById('setup-btn');
     btn.disabled = true;
-    btn.textContent = 'Validation...';
+    btn.textContent = 'Création...';
 
     try {
-        const res = await fetch('api/attempt.php?action=submit', {
+        const res = await fetch('api/auth.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tentative_id: tentativeId, reponses: answers }),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=setup&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password),
         });
         const data = await res.json();
         if (data.success) {
-            document.getElementById('result-expired-msg').textContent = data.expiree ? "Le temps imparti était écoulé : votre tentative a été enregistrée telle quelle." : '';
-
-            if (data.afficher_score) {
-                document.getElementById('result-with-score').classList.remove('hidden');
-                document.getElementById('result-no-score').classList.add('hidden');
-                const scoreEl = document.getElementById('result-score');
-                scoreEl.textContent = `${data.note} / ${data.note_max}`;
-                scoreEl.className = 'result-score ' + (data.reussi ? 'ok' : 'ko');
-                let detailTxt = `${data.bonnes_reponses} bonne(s) réponse(s) sur ${data.total_questions_notees} question(s) notée(s)`;
-                if (data.total_questions > data.total_questions_notees) detailTxt += ` (+ ${data.total_questions - data.total_questions_notees} question(s) ouverte(s) à relire manuellement)`;
-                document.getElementById('result-detail').textContent = detailTxt;
-                const pill = document.getElementById('result-pill');
-                pill.textContent = data.reussi ? 'Réussi' : 'Non validé';
-                pill.className = 'pill ' + (data.reussi ? 'ok' : 'warn');
-            } else {
-                document.getElementById('result-with-score').classList.add('hidden');
-                document.getElementById('result-no-score').classList.remove('hidden');
-            }
-            showScreen('result');
+            window.location.href = 'dashboard.php';
         } else {
-            errorEl.textContent = data.message || 'Erreur lors de la validation';
+            errorEl.textContent = data.message || 'Impossible de créer le compte';
         }
     } catch (err) {
         errorEl.textContent = 'Erreur de connexion au serveur';
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Valider mes réponses';
+        btn.textContent = 'Créer le compte administrateur';
     }
-}
+});
 
-document.getElementById('submit-quiz-btn').addEventListener('click', () => submitQuiz(false));
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username-input').value;
+    const password = document.getElementById('password-input').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.textContent = '';
+
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Connexion...';
+
+    try {
+        const res = await fetch('api/auth.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=login&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password),
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = 'dashboard.php';
+        } else {
+            errorEl.textContent = data.message || 'Identifiant ou mot de passe incorrect';
+        }
+    } catch (err) {
+        errorEl.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+    }
+});
 
 document.getElementById('year').textContent = new Date().getFullYear();
-showScreen('list');
-loadQuizList();
+checkSession();
 </script>
 
 </body>
