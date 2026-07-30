@@ -29,7 +29,8 @@ body {
 a { color: var(--accent); }
 
 .brand {
-    text-align: center;
+    width: 100%;
+    text-align: left;
     margin-bottom: 8px;
 }
 

@@ -11,9 +11,18 @@ const screens = {
     admin: document.getElementById('admin-screen'),
 };
 
+const pageBrand = document.getElementById('page-brand');
+const pageBrandSubtitle = document.getElementById('page-brand-subtitle');
+const PAGE_BRAND_SUBTITLES = {
+    setup: 'Première connexion admin — crée ton compte',
+    login: 'Administration',
+};
+
 function showScreen(name) {
     Object.values(screens).forEach(s => s.classList.add('hidden'));
     screens[name].classList.remove('hidden');
+    pageBrand.classList.toggle('hidden', name === 'admin');
+    if (PAGE_BRAND_SUBTITLES[name]) pageBrandSubtitle.textContent = PAGE_BRAND_SUBTITLES[name];
 }
 
 function escapeHtml(str) {

@@ -8,9 +8,13 @@
 </head>
 <body>
 
+<div class="brand" id="page-brand">
+    <img src="../assets/logo.png" alt="ArcheryOps Judging">
+    <p class="subtitle" id="page-brand-subtitle">Administration</p>
+</div>
+
 <!-- ================= ECRAN DE CONFIGURATION INITIALE ================= -->
 <div id="setup-screen" class="page hidden">
-    <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"><p class="subtitle">Première connexion admin — crée ton compte</p></div>
     <form class="panel" id="setup-form">
         <input type="text" id="setup-username-input" placeholder="Identifiant" autocomplete="username" required autofocus minlength="3">
         <input type="password" id="setup-password-input" placeholder="Mot de passe (8 caractères min.)" autocomplete="new-password" required minlength="8">
@@ -22,7 +26,6 @@
 
 <!-- ================= ECRAN DE CONNEXION ================= -->
 <div id="login-screen" class="page hidden">
-    <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps Judging"><p class="subtitle">Administration</p></div>
     <form class="panel" id="login-form">
         <input type="text" id="username-input" placeholder="Identifiant" autocomplete="username" required autofocus>
         <input type="password" id="password-input" placeholder="Mot de passe" autocomplete="current-password" required>
