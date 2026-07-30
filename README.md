@@ -11,6 +11,7 @@ Application web PHP + JS pour créer des QCM et faire passer des questionnaires 
   - Questionnaires de deux types :
     - **Entraînement** : pioche uniquement parmi les questions non réservées à l'examen (aucune question d'examen ne peut y apparaître).
     - **Examen** : peut piocher dans toute la banque de questions, avec réglages spécifiques : **fenêtre d'ouverture** (date/heure de début et de fin), **durée chronométrée** (minuteur, auto-soumission à expiration), **nombre de tentatives maximum** par candidat, et **affichage ou masquage du score** au candidat à la fin.
+  - Chaque questionnaire (entraînement ou examen) peut piocher soit un nombre global de questions dans une catégorie unique (ou toutes), soit une **répartition par thématique** (ex. 3 questions "Sécurité" + 2 "Scoring" + 5 "Règlement") : le nombre total de questions est alors la somme des thématiques, et le tirage respecte le nombre demandé par thématique.
   - Résultats : archive de **toutes** les tentatives (entraînement et examen), avec statut (en cours / terminée / expirée), conservée même si le questionnaire ou les questions sont ensuite modifiés ou supprimés.
 
 Aucune gestion de comptes candidats n'est prévue pour l'instant (à venir dans une prochaine itération) : les candidats renseignent simplement leur nom avant de démarrer, et ce nom sert d'identifiant pour la reprise de tentative et le comptage des tentatives sur les examens.

@@ -157,6 +157,9 @@ function renderCategoryFilter() {
     select.innerHTML = '<option value="">Toutes les catégories</option>' +
         categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     select.value = current;
+
+    const datalist = document.getElementById('qz-categories-datalist');
+    if (datalist) datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
 }
 
 function formatBonneReponse(q) {
@@ -411,7 +414,8 @@ async function loadQuizzes() {
                     <span class="pill">${q.nombre_questions} question(s)</span>
                     <span class="pill">Note sur ${q.note_max}</span>
                     <span class="pill">Seuil : ${q.seuil_reussite}</span>
-                    <span class="pill ${q.questions_disponibles < q.nombre_questions ? 'warn' : 'ok'}">${q.questions_disponibles} question(s) disponible(s)</span>
+                    <span class="pill ${!q.suffisant ? 'warn' : 'ok'}">${q.questions_disponibles} question(s) disponible(s)</span>
+                    ${q.repartition ? q.repartition.map(p => `<span class="pill ${p.disponible < p.nombre_questions ? 'warn' : ''}">${escapeHtml(p.categorie)} : ${p.disponible}/${p.nombre_questions}</span>`).join('') : ''}
                     ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
                     ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
                     <span class="pill">${q.afficher_score ? 'Score affiché' : 'Score masqué'}</span>
@@ -443,6 +447,41 @@ function updateQuizTypeFields() {
 }
 qzTypeSelect.addEventListener('change', updateQuizTypeFields);
 
+// ---------- Répartition des questions par thématique ----------
+const repartitionToggle = document.getElementById('qz-repartition-toggle');
+const repartitionRows = document.getElementById('qz-repartition-rows');
+
+function updateRepartitionTotal() {
+    const total = Array.from(repartitionRows.querySelectorAll('.qz-rep-nombre'))
+        .reduce((sum, input) => sum + (parseInt(input.value, 10) || 0), 0);
+    document.getElementById('qz-repartition-total').textContent = `Total : ${total} question(s)`;
+}
+
+function addRepartitionRow(categorie = '', nombre = 1) {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.style.alignItems = 'flex-end';
+    row.innerHTML = `
+        <div class="field"><label>Thématique</label><input type="text" class="qz-rep-categorie" list="qz-categories-datalist" value="${escapeHtml(categorie)}" placeholder="Ex. Sécurité"></div>
+        <div class="field" style="max-width:140px;"><label>Nombre</label><input type="number" class="qz-rep-nombre" min="1" value="${nombre}"></div>
+        <button type="button" class="secondary qz-rep-remove-btn" style="padding:10px 14px;">Retirer</button>
+    `;
+    row.querySelector('.qz-rep-nombre').addEventListener('input', updateRepartitionTotal);
+    row.querySelector('.qz-rep-remove-btn').addEventListener('click', () => { row.remove(); updateRepartitionTotal(); });
+    repartitionRows.appendChild(row);
+    updateRepartitionTotal();
+}
+
+document.getElementById('qz-add-repartition-btn').addEventListener('click', () => addRepartitionRow());
+
+function updateRepartitionToggleFields() {
+    const useRepartition = repartitionToggle.checked;
+    document.getElementById('qz-simple-fields').classList.toggle('hidden', useRepartition);
+    document.getElementById('qz-repartition-fields').classList.toggle('hidden', !useRepartition);
+    if (useRepartition && !repartitionRows.children.length) addRepartitionRow();
+}
+repartitionToggle.addEventListener('change', updateRepartitionToggleFields);
+
 function openQuizModal(id) {
     const modalMsg = document.getElementById('quiz-modal-msg');
     modalMsg.textContent = '';
@@ -459,6 +498,8 @@ function openQuizModal(id) {
     document.getElementById('qz-afficher-score').checked = true;
     document.getElementById('qz-actif').checked = true;
     document.getElementById('quiz-modal-title').textContent = 'Nouveau questionnaire';
+    repartitionRows.innerHTML = '';
+    repartitionToggle.checked = false;
 
     if (id) {
         const q = quizzes.find(x => String(x.id) === String(id));
@@ -478,9 +519,15 @@ function openQuizModal(id) {
             document.getElementById('qz-ouverture-fin').value = toDatetimeLocal(q.ouverture_fin);
             document.getElementById('qz-afficher-score').checked = q.afficher_score;
             document.getElementById('qz-actif').checked = q.actif;
+
+            if (q.repartition && q.repartition.length) {
+                repartitionToggle.checked = true;
+                q.repartition.forEach(p => addRepartitionRow(p.categorie, p.nombre_questions));
+            }
         }
     }
     updateQuizTypeFields();
+    updateRepartitionToggleFields();
     quizModal.classList.remove('hidden');
 }
 
@@ -495,6 +542,19 @@ quizForm.addEventListener('submit', async (e) => {
     const saveBtn = document.getElementById('quiz-save-btn');
     saveBtn.disabled = true;
 
+    const repartition = repartitionToggle.checked
+        ? Array.from(repartitionRows.querySelectorAll('.field-row')).map(row => ({
+            categorie: row.querySelector('.qz-rep-categorie').value.trim(),
+            nombre_questions: parseInt(row.querySelector('.qz-rep-nombre').value, 10) || 1,
+        })).filter(p => p.categorie !== '')
+        : [];
+
+    if (repartitionToggle.checked && !repartition.length) {
+        modalMsg.textContent = 'Ajoutez au moins une thématique avec un nom, ou désactivez la répartition par thématique';
+        saveBtn.disabled = false;
+        return;
+    }
+
     const payload = {
         id: document.getElementById('qz-id').value || null,
         nom: document.getElementById('qz-nom').value,
@@ -502,6 +562,7 @@ quizForm.addEventListener('submit', async (e) => {
         type: document.getElementById('qz-type').value,
         categorie_filtre: document.getElementById('qz-categorie').value,
         nombre_questions: parseInt(document.getElementById('qz-nombre').value, 10) || 1,
+        repartition,
         note_max: parseFloat(document.getElementById('qz-notemax').value) || 20,
         seuil_reussite: parseFloat(document.getElementById('qz-seuil').value) || 0,
         duree_minutes: document.getElementById('qz-duree').value || '',

@@ -46,7 +46,10 @@ function get_db() {
     // Questionnaires : entraînement (piochent uniquement dans les
     // questions non réservées à l'examen) ou examen (piochent dans
     // toute la banque, fenêtre d'ouverture, durée, tentatives max et
-    // affichage du score configurables).
+    // affichage du score configurables). `repartition` est un JSON
+    // optionnel [{"categorie":"Sécurité","nombre_questions":3}, ...] :
+    // quand il est renseigné, il remplace categorie_filtre/nombre_questions
+    // et pioche un nombre de questions donné par thématique.
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS quizzes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +58,7 @@ function get_db() {
         type TEXT NOT NULL DEFAULT 'entrainement',
         categorie_filtre TEXT,
         nombre_questions INTEGER NOT NULL DEFAULT 10,
+        repartition TEXT,
         note_max INTEGER NOT NULL DEFAULT 20,
         seuil_reussite INTEGER NOT NULL DEFAULT 10,
         duree_minutes INTEGER,

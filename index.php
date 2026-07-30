@@ -111,7 +111,7 @@ async function loadQuizList() {
         msg.textContent = '';
         grid.innerHTML = quizzes.map(q => {
             const closed = !!q.ferme;
-            const notEnough = q.questions_disponibles < q.nombre_questions;
+            const notEnough = !q.suffisant;
             const disabled = closed || notEnough;
             let btnLabel = 'Démarrer';
             if (closed) btnLabel = q.ferme;

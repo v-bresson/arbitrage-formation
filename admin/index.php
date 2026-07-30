@@ -186,9 +186,22 @@
                     <option value="examen">Examen (peut utiliser toute la banque de questions)</option>
                 </select>
             </div>
-            <div class="field"><label>Catégorie (laisser vide = toutes les catégories)</label><input type="text" id="qz-categorie"></div>
-            <div class="field-row">
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-repartition-toggle" style="width:auto;"> Répartir le nombre de questions par thématique</label>
+
+            <div id="qz-simple-fields" class="field-row">
+                <div class="field"><label>Catégorie (laisser vide = toutes les catégories)</label><input type="text" id="qz-categorie" list="qz-categories-datalist"></div>
                 <div class="field"><label>Nombre de questions</label><input type="number" id="qz-nombre" min="1" value="10" required></div>
+            </div>
+
+            <div id="qz-repartition-fields" class="hidden" style="display:flex;flex-direction:column;gap:10px;">
+                <label>Thématiques et nombre de questions</label>
+                <div id="qz-repartition-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+                <button type="button" class="secondary" id="qz-add-repartition-btn" style="align-self:flex-start;">+ Ajouter une thématique</button>
+                <p class="msg" id="qz-repartition-total" style="color:var(--text-secondary);"></p>
+            </div>
+            <datalist id="qz-categories-datalist"></datalist>
+
+            <div class="field-row">
                 <div class="field"><label>Note maximale</label><input type="number" id="qz-notemax" min="1" value="20" required></div>
                 <div class="field"><label>Seuil de réussite</label><input type="number" id="qz-seuil" min="0" value="10" required></div>
             </div>

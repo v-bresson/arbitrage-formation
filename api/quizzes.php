@@ -14,11 +14,35 @@ function qa_quiz_pool_where($type) {
     return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
 }
 
+function qa_count_available($pdo, $poolWhere, $categorie) {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
+    $countStmt->execute([$categorie ?? '', $categorie ?? '']);
+    return (int)$countStmt->fetch()['c'];
+}
+
 function qa_quiz_row_out($row, $pdo) {
     $poolWhere = qa_quiz_pool_where($row['type']);
-    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
-    $countStmt->execute([$row['categorie_filtre'] ?? '', $row['categorie_filtre'] ?? '']);
-    $available = (int)$countStmt->fetch()['c'];
+    $repartition = null;
+    $suffisant = true;
+
+    if (!empty($row['repartition'])) {
+        $parts = json_decode($row['repartition'], true) ?: [];
+        $repartition = [];
+        $available = 0;
+        foreach ($parts as $part) {
+            $dispo = qa_count_available($pdo, $poolWhere, $part['categorie']);
+            $available += min($dispo, $part['nombre_questions']);
+            if ($dispo < $part['nombre_questions']) $suffisant = false;
+            $repartition[] = [
+                'categorie' => $part['categorie'],
+                'nombre_questions' => (int)$part['nombre_questions'],
+                'disponible' => $dispo,
+            ];
+        }
+    } else {
+        $available = qa_count_available($pdo, $poolWhere, $row['categorie_filtre'] ?? '');
+        $suffisant = $available >= (int)$row['nombre_questions'];
+    }
 
     return [
         'id' => (int)$row['id'],
@@ -27,6 +51,7 @@ function qa_quiz_row_out($row, $pdo) {
         'type' => $row['type'],
         'categorie_filtre' => $row['categorie_filtre'],
         'nombre_questions' => (int)$row['nombre_questions'],
+        'repartition' => $repartition,
         'note_max' => (float)$row['note_max'],
         'seuil_reussite' => (float)$row['seuil_reussite'],
         'duree_minutes' => $row['duree_minutes'] !== null ? (int)$row['duree_minutes'] : null,
@@ -36,6 +61,7 @@ function qa_quiz_row_out($row, $pdo) {
         'afficher_score' => (bool)$row['afficher_score'],
         'actif' => (bool)$row['actif'],
         'questions_disponibles' => $available,
+        'suffisant' => $suffisant,
         'created_at' => $row['created_at'],
     ];
 }
@@ -56,6 +82,22 @@ if ($action === 'save') {
     $categorieFiltre = trim($body['categorie_filtre'] ?? '');
     $nombreQuestions = max(1, (int)($body['nombre_questions'] ?? 10));
     $noteMax = max(1, (float)($body['note_max'] ?? 20));
+
+    // Répartition par thématique : liste [{categorie, nombre_questions}, ...].
+    // Quand elle est fournie et non vide, elle remplace categorie_filtre et
+    // nombre_questions (recalculé comme la somme des thématiques).
+    $repartitionInput = is_array($body['repartition'] ?? null) ? $body['repartition'] : [];
+    $repartition = [];
+    foreach ($repartitionInput as $part) {
+        $cat = trim($part['categorie'] ?? '');
+        $n = max(1, (int)($part['nombre_questions'] ?? 0));
+        if ($cat === '') continue;
+        $repartition[] = ['categorie' => $cat, 'nombre_questions' => $n];
+    }
+    if (!empty($repartition)) {
+        $categorieFiltre = '';
+        $nombreQuestions = array_sum(array_column($repartition, 'nombre_questions'));
+    }
     $seuil = max(0, (float)($body['seuil_reussite'] ?? 10));
     $dureeMinutes = isset($body['duree_minutes']) && $body['duree_minutes'] !== '' ? max(1, (int)$body['duree_minutes']) : null;
     $ouvertureDebut = trim($body['ouverture_debut'] ?? '') ?: null;
@@ -80,12 +122,14 @@ if ($action === 'save') {
         exit;
     }
 
+    $repartitionJson = !empty($repartition) ? json_encode($repartition) : null;
+
     if ($id) {
-        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, type=?, categorie_filtre=?, nombre_questions=?, note_max=?, seuil_reussite=?, duree_minutes=?, ouverture_debut=?, ouverture_fin=?, tentatives_max=?, afficher_score=?, actif=? WHERE id=?');
-        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif, $id]);
+        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, type=?, categorie_filtre=?, nombre_questions=?, repartition=?, note_max=?, seuil_reussite=?, duree_minutes=?, ouverture_debut=?, ouverture_fin=?, tentatives_max=?, afficher_score=?, actif=? WHERE id=?');
+        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $repartitionJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif, $id]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, type, categorie_filtre, nombre_questions, note_max, seuil_reussite, duree_minutes, ouverture_debut, ouverture_fin, tentatives_max, afficher_score, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif]);
+        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, type, categorie_filtre, nombre_questions, repartition, note_max, seuil_reussite, duree_minutes, ouverture_debut, ouverture_fin, tentatives_max, afficher_score, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $repartitionJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif]);
         $id = $pdo->lastInsertId();
     }
 

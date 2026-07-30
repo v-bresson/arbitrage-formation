@@ -9,6 +9,64 @@ function qa_pool_where($type) {
     return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
 }
 
+function qa_count_available($pdo, $poolWhere, $categorie) {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
+    $countStmt->execute([$categorie ?? '', $categorie ?? '']);
+    return (int)$countStmt->fetch()['c'];
+}
+
+// Calcule la disponibilité et le nombre total de questions d'un questionnaire,
+// en tenant compte de la répartition par thématique si elle est définie.
+// Renvoie [nombreQuestionsTotal, disponible, suffisant].
+function qa_quiz_availability($pdo, $quiz) {
+    $poolWhere = qa_pool_where($quiz['type']);
+    if (!empty($quiz['repartition'])) {
+        $parts = json_decode($quiz['repartition'], true) ?: [];
+        $total = 0;
+        $available = 0;
+        $suffisant = true;
+        foreach ($parts as $part) {
+            $dispo = qa_count_available($pdo, $poolWhere, $part['categorie']);
+            $total += $part['nombre_questions'];
+            $available += min($dispo, $part['nombre_questions']);
+            if ($dispo < $part['nombre_questions']) $suffisant = false;
+        }
+        return [$total, $available, $suffisant];
+    }
+
+    $available = qa_count_available($pdo, $poolWhere, $quiz['categorie_filtre'] ?? '');
+    return [(int)$quiz['nombre_questions'], $available, $available >= (int)$quiz['nombre_questions']];
+}
+
+// Pioche les questions d'un questionnaire, par thématique si une répartition
+// est définie (chaque thématique tire son propre nombre de questions), sinon
+// selon categorie_filtre/nombre_questions. Les questions sont mélangées pour
+// ne pas grouper les thématiques dans l'ordre d'affichage.
+function qa_draw_questions($pdo, $quiz) {
+    $poolWhere = qa_pool_where($quiz['type']);
+
+    if (!empty($quiz['repartition'])) {
+        $parts = json_decode($quiz['repartition'], true) ?: [];
+        $drawn = [];
+        foreach ($parts as $part) {
+            $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND categorie = ? ORDER BY RANDOM() LIMIT ?");
+            $qStmt->bindValue(1, $part['categorie']);
+            $qStmt->bindValue(2, (int)$part['nombre_questions'], PDO::PARAM_INT);
+            $qStmt->execute();
+            $drawn = array_merge($drawn, $qStmt->fetchAll());
+        }
+        shuffle($drawn);
+        return $drawn;
+    }
+
+    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?) ORDER BY RANDOM() LIMIT ?");
+    $qStmt->bindValue(1, $quiz['categorie_filtre'] ?? '');
+    $qStmt->bindValue(2, $quiz['categorie_filtre'] ?? '');
+    $qStmt->bindValue(3, (int)$quiz['nombre_questions'], PDO::PARAM_INT);
+    $qStmt->execute();
+    return $qStmt->fetchAll();
+}
+
 // Détermine si un questionnaire est ouvrable maintenant (fenêtre d'ouverture),
 // et renvoie un message explicite sinon.
 function qa_check_window($quiz) {
@@ -87,24 +145,23 @@ function qa_grade($questions, $reponses) {
 if ($action === 'quizzes') {
     $stmt = $pdo->query('SELECT * FROM quizzes WHERE actif=1 ORDER BY type, nom');
     $rows = array_map(function ($row) use ($pdo) {
-        $poolWhere = qa_pool_where($row['type']);
-        $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
-        $countStmt->execute([$row['categorie_filtre'] ?? '', $row['categorie_filtre'] ?? '']);
         $fermetureMsg = qa_check_window($row);
+        [$total, $available, $suffisant] = qa_quiz_availability($pdo, $row);
 
         return [
             'id' => (int)$row['id'],
             'nom' => $row['nom'],
             'description' => $row['description'],
             'type' => $row['type'],
-            'nombre_questions' => (int)$row['nombre_questions'],
+            'nombre_questions' => $total,
             'note_max' => (float)$row['note_max'],
             'seuil_reussite' => (float)$row['seuil_reussite'],
             'duree_minutes' => $row['duree_minutes'] !== null ? (int)$row['duree_minutes'] : null,
             'ouverture_debut' => $row['ouverture_debut'],
             'ouverture_fin' => $row['ouverture_fin'],
             'tentatives_max' => $row['tentatives_max'] !== null ? (int)$row['tentatives_max'] : null,
-            'questions_disponibles' => (int)$countStmt->fetch()['c'],
+            'questions_disponibles' => $available,
+            'suffisant' => $suffisant,
             'ferme' => $fermetureMsg,
         ];
     }, $stmt->fetchAll());
@@ -185,13 +242,14 @@ if ($action === 'start') {
         }
     }
 
-    $poolWhere = qa_pool_where($quiz['type']);
-    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?) ORDER BY RANDOM() LIMIT ?");
-    $qStmt->bindValue(1, $quiz['categorie_filtre'] ?? '');
-    $qStmt->bindValue(2, $quiz['categorie_filtre'] ?? '');
-    $qStmt->bindValue(3, (int)$quiz['nombre_questions'], PDO::PARAM_INT);
-    $qStmt->execute();
-    $drawn = $qStmt->fetchAll();
+    [, , $suffisant] = qa_quiz_availability($pdo, $quiz);
+    if (!$suffisant) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => "Il n'y a pas assez de questions disponibles (globalement ou dans une thématique) pour ce questionnaire"]);
+        exit;
+    }
+
+    $drawn = qa_draw_questions($pdo, $quiz);
 
     if (count($drawn) < 1) {
         http_response_code(422);
