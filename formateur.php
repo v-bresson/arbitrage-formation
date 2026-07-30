@@ -30,18 +30,9 @@
     <div class="header-spacer"></div>
     <script src="assets/header-fix.js"></script>
 
-    <div class="admin-layout">
-        <nav class="admin-sidebar">
-            <a class="sidebar-link active" href="formateur.php">Dashboard</a>
-            <span class="sidebar-link" style="opacity:0.5;cursor:default;">Fonctions à venir</span>
-        </nav>
+    <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
-        <div class="admin-content">
-            <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
-
-            <div class="grid" id="links-grid"></div>
-        </div>
-    </div>
+    <div class="grid" id="links-grid"></div>
 </div>
 
 <footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage</footer>
