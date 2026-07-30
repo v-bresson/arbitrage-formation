@@ -111,6 +111,13 @@ function qa_schema_migrations() {
                 ['table' => 'users', 'column' => 'formateur_referent_id', 'definition' => 'INT UNSIGNED NULL'],
             ],
         ],
+        [
+            'id' => 'candidats_date_entree_formation_2026_07',
+            'description' => "Ajout de la date d'entrée en formation des candidats",
+            'columns' => [
+                ['table' => 'users', 'column' => 'date_entree_formation', 'definition' => 'DATE NULL'],
+            ],
+        ],
     ];
 }
 
@@ -309,6 +316,7 @@ function get_db() {
         niveau_formation VARCHAR(50) NULL,
         option_pratique VARCHAR(50) NULL,
         formateur_referent_id INT UNSIGNED NULL,
+        date_entree_formation DATE NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 

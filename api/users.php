@@ -31,6 +31,7 @@ function qa_user_row_out($pdo, $row) {
         'niveau_formation' => $row['niveau_formation'] ?? null,
         'option_pratique' => $row['option_pratique'] ?? null,
         'formateur_referent_id' => isset($row['formateur_referent_id']) && $row['formateur_referent_id'] !== null ? (int)$row['formateur_referent_id'] : null,
+        'date_entree_formation' => $row['date_entree_formation'] ?? null,
         'created_at' => $row['created_at'],
         'permission_overrides' => qa_user_overrides($pdo, $row['id']),
         'effective_permissions' => qa_effective_permissions($pdo, $row['id'], $role),
@@ -79,6 +80,7 @@ if ($action === 'save') {
     $niveauFormation = in_array($body['niveau_formation'] ?? '', QA_NIVEAUX_FORMATION, true) ? $body['niveau_formation'] : null;
     $optionPratique = in_array($body['option_pratique'] ?? '', QA_OPTIONS_PRATIQUE, true) ? $body['option_pratique'] : null;
     $formateurReferentId = !empty($body['formateur_referent_id']) ? (int)$body['formateur_referent_id'] : null;
+    $dateEntreeFormation = preg_match('/^\d{4}-\d{2}-\d{2}$/', $body['date_entree_formation'] ?? '') ? $body['date_entree_formation'] : null;
 
     if ($username === '' || strlen($username) < 3) {
         http_response_code(422);
@@ -108,15 +110,15 @@ if ($action === 'save') {
     try {
         if ($id) {
             if ($password !== '') {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=? WHERE id=?');
-                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=?, date_entree_formation=? WHERE id=?');
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation, $id]);
             } else {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=? WHERE id=?');
-                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=?, date_entree_formation=? WHERE id=?');
+                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation, $id]);
             }
         } else {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club, niveau_formation, option_pratique, formateur_referent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId]);
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club, niveau_formation, option_pratique, formateur_referent_id, date_entree_formation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation]);
             $id = $pdo->lastInsertId();
         }
     } catch (PDOException $e) {

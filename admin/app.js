@@ -109,6 +109,7 @@ const vm = qaReactive({
         quizzes: '',
         attempts: '',
         users: '',
+        candidats: '',
         roles: '',
         maintBackups: '',
     },
@@ -794,10 +795,90 @@ function renderUsersTable(tbodyId, users, emptyMsg) {
     tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
 }
 
+const NIVEAUX_FORMATION = ['Assistant Arbitre', 'Arbitre Fédéral', 'Arbitre Duel'];
+const OPTIONS_PRATIQUE = ['Cible', 'Nat/3D', 'Campagne'];
+
+function renderCandidatsTable(users, emptyMsg) {
+    const tbody = document.getElementById('candidats-tbody');
+    if (!users.length) {
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">${escapeHtml(emptyMsg)}</td></tr>`;
+        return;
+    }
+    const formateurs = vm.users.filter(u => u.role === 'formateur' || u.role === 'membre_cra');
+    const canEdit = canManage('users');
+
+    tbody.innerHTML = users.map(u => `
+        <tr data-id="${u.id}">
+            <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
+            <td>${escapeHtml(u.club || '—')}</td>
+            <td>${canEdit ? `<select class="quick-niveau-select" data-id="${u.id}">
+                <option value="">—</option>
+                ${NIVEAUX_FORMATION.map(n => `<option value="${escapeHtml(n)}" ${u.niveau_formation === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}
+            </select>` : escapeHtml(u.niveau_formation || '—')}</td>
+            <td>${canEdit ? `<select class="quick-option-select" data-id="${u.id}">
+                <option value="">—</option>
+                ${OPTIONS_PRATIQUE.map(o => `<option value="${escapeHtml(o)}" ${u.option_pratique === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+            </select>` : escapeHtml(u.option_pratique || '—')}</td>
+            <td>${canEdit ? `<select class="quick-formateur-select" data-id="${u.id}">
+                <option value="">—</option>
+                ${formateurs.map(f => `<option value="${f.id}" ${String(u.formateur_referent_id) === String(f.id) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`).join('')}
+            </select>` : escapeHtml((formateurs.find(f => String(f.id) === String(u.formateur_referent_id)) || {}).username || '—')}</td>
+            <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
+            <td class="row-actions">
+                ${canEdit ? `<button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button><button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+
+    tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
+    tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
+    tbody.querySelectorAll('.quick-niveau-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { niveau_formation: sel.value })));
+    tbody.querySelectorAll('.quick-option-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { option_pratique: sel.value })));
+    tbody.querySelectorAll('.quick-formateur-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { formateur_referent_id: sel.value || null })));
+}
+
+async function quickSaveCandidat(id, changes) {
+    const u = vm.users.find(x => String(x.id) === String(id));
+    if (!u) return;
+    const payload = {
+        id: u.id,
+        username: u.username,
+        password: '',
+        prenom: u.prenom,
+        nom: u.nom,
+        email: u.email,
+        telephone: u.telephone,
+        numero_licence: u.numero_licence,
+        club: u.club,
+        role: u.role,
+        actif: u.actif,
+        niveau_formation: u.niveau_formation,
+        option_pratique: u.option_pratique,
+        formateur_referent_id: u.formateur_referent_id,
+        date_entree_formation: u.date_entree_formation,
+        permission_overrides: u.permission_overrides || {},
+        ...changes,
+    };
+    try {
+        const res = await fetch('../api/users.php?action=save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) await loadUsers();
+        else vm.msg.candidats = data.message || "Erreur lors de l'enregistrement";
+    } catch (err) {
+        vm.msg.candidats = 'Erreur de connexion au serveur';
+    }
+}
+
 qaWatchEffect(() => {
     renderUsersTable('users-tbody', vm.users, vm.msg.users || 'Aucun utilisateur.');
-    renderUsersTable('candidats-tbody', vm.users.filter(u => u.role === 'candidat'), 'Aucun candidat.');
+    renderCandidatsTable(vm.users.filter(u => u.role === 'candidat'), 'Aucun candidat.');
     renderUsersTable('formateurs-tbody', vm.users.filter(u => u.role === 'formateur'), 'Aucun formateur.');
+    document.getElementById('candidats-msg').textContent = vm.msg.candidats;
 });
 
 const userModal = document.getElementById('user-modal-overlay');
@@ -826,6 +907,7 @@ function openUserModal(id) {
     document.getElementById('user-actif').checked = true;
     document.getElementById('user-niveau-formation').value = '';
     document.getElementById('user-option-pratique').value = '';
+    document.getElementById('user-date-entree-formation').value = '';
     document.getElementById('user-password').required = true;
     document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
@@ -848,6 +930,7 @@ function openUserModal(id) {
             document.getElementById('user-actif').checked = u.actif;
             document.getElementById('user-niveau-formation').value = u.niveau_formation || '';
             document.getElementById('user-option-pratique').value = u.option_pratique || '';
+            document.getElementById('user-date-entree-formation').value = u.date_entree_formation || '';
             populateFormateurReferentOptions(u.formateur_referent_id);
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
@@ -925,6 +1008,7 @@ userForm.addEventListener('submit', async (e) => {
         niveau_formation: document.getElementById('user-niveau-formation').value,
         option_pratique: document.getElementById('user-option-pratique').value,
         formateur_referent_id: document.getElementById('user-formateur-referent').value || null,
+        date_entree_formation: document.getElementById('user-date-entree-formation').value,
         permission_overrides: permissionOverrides,
     };
 
@@ -992,23 +1076,16 @@ qaWatchEffect(() => {
                 ${r.is_system ? '<span class="pill">Système</span>' : ''}
             </div>
             ${isSuperAdmin ? '<p class="modal-hint" style="margin:0;">Accès total à toutes les sections, non modifiable.</p>' : `
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>Section</th><th>Accès</th></tr></thead>
-                    <tbody>
-                        ${Object.keys(permissionSections).map(section => `
-                        <tr>
-                            <td>${escapeHtml(permissionSections[section])}</td>
-                            <td>
-                                <select class="role-perm-select" data-section="${section}">
-                                    <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
-                                    <option value="read" ${r.permissions[section] === 'read' ? 'selected' : ''}>Lecture seule</option>
-                                    <option value="manage" ${r.permissions[section] === 'manage' ? 'selected' : ''}>Gestion complète</option>
-                                </select>
-                            </td>
-                        </tr>`).join('')}
-                    </tbody>
-                </table>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
+                ${Object.keys(permissionSections).map(section => `
+                <div class="field" style="margin:0;">
+                    <label>${escapeHtml(permissionSections[section])}</label>
+                    <select class="role-perm-select" data-section="${section}">
+                        <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
+                        <option value="read" ${r.permissions[section] === 'read' ? 'selected' : ''}>Lecture seule</option>
+                        <option value="manage" ${r.permissions[section] === 'manage' ? 'selected' : ''}>Gestion complète</option>
+                    </select>
+                </div>`).join('')}
             </div>
             <div class="row-actions" style="margin-top:8px;">
                 <button type="button" class="secondary save-role-btn" data-id="${escapeHtml(r.role_key)}">Enregistrer</button>
