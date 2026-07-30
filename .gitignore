@@ -1,2 +1,4 @@
 data/*.sqlite
 data/credentials.json
+uploads/questions/*
+!uploads/questions/.gitkeep

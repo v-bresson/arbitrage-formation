@@ -8,8 +8,15 @@ header('Content-Type: application/json');
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+function qa_quiz_pool_where($type) {
+    // Un questionnaire d'entraînement ne pioche jamais parmi les questions
+    // réservées à l'examen. Un questionnaire d'examen pioche dans toute la banque.
+    return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
+}
+
 function qa_quiz_row_out($row, $pdo) {
-    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND (? = '' OR categorie = ?)");
+    $poolWhere = qa_quiz_pool_where($row['type']);
+    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
     $countStmt->execute([$row['categorie_filtre'] ?? '', $row['categorie_filtre'] ?? '']);
     $available = (int)$countStmt->fetch()['c'];
 
@@ -17,10 +24,16 @@ function qa_quiz_row_out($row, $pdo) {
         'id' => (int)$row['id'],
         'nom' => $row['nom'],
         'description' => $row['description'],
+        'type' => $row['type'],
         'categorie_filtre' => $row['categorie_filtre'],
         'nombre_questions' => (int)$row['nombre_questions'],
         'note_max' => (float)$row['note_max'],
         'seuil_reussite' => (float)$row['seuil_reussite'],
+        'duree_minutes' => $row['duree_minutes'] !== null ? (int)$row['duree_minutes'] : null,
+        'ouverture_debut' => $row['ouverture_debut'],
+        'ouverture_fin' => $row['ouverture_fin'],
+        'tentatives_max' => $row['tentatives_max'] !== null ? (int)$row['tentatives_max'] : null,
+        'afficher_score' => (bool)$row['afficher_score'],
         'actif' => (bool)$row['actif'],
         'questions_disponibles' => $available,
         'created_at' => $row['created_at'],
@@ -39,10 +52,16 @@ if ($action === 'save') {
     $id = $body['id'] ?? null;
     $nom = trim($body['nom'] ?? '');
     $description = trim($body['description'] ?? '');
+    $type = in_array($body['type'] ?? '', ['entrainement', 'examen'], true) ? $body['type'] : 'entrainement';
     $categorieFiltre = trim($body['categorie_filtre'] ?? '');
     $nombreQuestions = max(1, (int)($body['nombre_questions'] ?? 10));
     $noteMax = max(1, (float)($body['note_max'] ?? 20));
     $seuil = max(0, (float)($body['seuil_reussite'] ?? 10));
+    $dureeMinutes = isset($body['duree_minutes']) && $body['duree_minutes'] !== '' ? max(1, (int)$body['duree_minutes']) : null;
+    $ouvertureDebut = trim($body['ouverture_debut'] ?? '') ?: null;
+    $ouvertureFin = trim($body['ouverture_fin'] ?? '') ?: null;
+    $tentativesMax = isset($body['tentatives_max']) && $body['tentatives_max'] !== '' ? max(1, (int)$body['tentatives_max']) : null;
+    $afficherScore = !empty($body['afficher_score']) ? 1 : 0;
     $actif = !empty($body['actif']) ? 1 : 0;
 
     if ($nom === '') {
@@ -55,13 +74,18 @@ if ($action === 'save') {
         echo json_encode(['success' => false, 'message' => 'Le seuil de réussite ne peut pas dépasser la note maximale']);
         exit;
     }
+    if ($ouvertureDebut && $ouvertureFin && $ouvertureDebut >= $ouvertureFin) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => "La date d'ouverture doit être antérieure à la date de fermeture"]);
+        exit;
+    }
 
     if ($id) {
-        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, categorie_filtre=?, nombre_questions=?, note_max=?, seuil_reussite=?, actif=? WHERE id=?');
-        $stmt->execute([$nom, $description, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $actif, $id]);
+        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, type=?, categorie_filtre=?, nombre_questions=?, note_max=?, seuil_reussite=?, duree_minutes=?, ouverture_debut=?, ouverture_fin=?, tentatives_max=?, afficher_score=?, actif=? WHERE id=?');
+        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif, $id]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, categorie_filtre, nombre_questions, note_max, seuil_reussite, actif) VALUES (?,?,?,?,?,?,?)');
-        $stmt->execute([$nom, $description, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $actif]);
+        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, type, categorie_filtre, nombre_questions, note_max, seuil_reussite, duree_minutes, ouverture_debut, ouverture_fin, tentatives_max, afficher_score, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif]);
         $id = $pdo->lastInsertId();
     }
 
@@ -74,6 +98,7 @@ if ($action === 'save') {
 if ($action === 'delete') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($body['id'] ?? 0);
+    // Les tentatives passées sont conservées (quiz_id passe à NULL, voir schéma)
     $pdo->prepare('DELETE FROM quizzes WHERE id=?')->execute([$id]);
     echo json_encode(['success' => true]);
     exit;
@@ -82,22 +107,26 @@ if ($action === 'delete') {
 if ($action === 'attempts') {
     $quizId = (int)($_GET['quiz_id'] ?? 0);
     if ($quizId) {
-        $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE quiz_id=? ORDER BY created_at DESC');
+        $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE quiz_id=? ORDER BY started_at DESC');
         $stmt->execute([$quizId]);
     } else {
-        $stmt = $pdo->query('SELECT t.*, q.nom AS quiz_nom FROM tentatives t JOIN quizzes q ON q.id = t.quiz_id ORDER BY t.created_at DESC LIMIT 200');
+        $stmt = $pdo->query('SELECT * FROM tentatives ORDER BY started_at DESC LIMIT 300');
     }
     $rows = $stmt->fetchAll();
     echo json_encode(array_map(function ($r) {
         return [
             'id' => (int)$r['id'],
-            'quiz_id' => (int)$r['quiz_id'],
-            'quiz_nom' => $r['quiz_nom'] ?? null,
+            'quiz_id' => $r['quiz_id'] !== null ? (int)$r['quiz_id'] : null,
+            'quiz_nom' => $r['quiz_nom'],
+            'quiz_type' => $r['quiz_type'],
             'candidat' => $r['candidat'],
-            'score' => (float)$r['score'],
+            'statut' => $r['statut'],
+            'score' => $r['score'] !== null ? (float)$r['score'] : null,
             'note_max' => (float)$r['note_max'],
-            'reussi' => (bool)$r['reussi'],
-            'created_at' => $r['created_at'],
+            'reussi' => $r['reussi'] !== null ? (bool)$r['reussi'] : null,
+            'afficher_score' => (bool)$r['afficher_score'],
+            'started_at' => $r['started_at'],
+            'completed_at' => $r['completed_at'],
         ];
     }, $rows));
     exit;

@@ -240,6 +240,40 @@ tr:hover td { background: var(--bg-card-hover); }
 .modal-hint { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
 
+/* ---------- Minuteur ---------- */
+.timer-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.timer-bar #timer-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-bar.urgent #timer-value { color: var(--danger); }
+.timer-bar.urgent { border-color: var(--danger); }
+
+.question-image {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    display: block;
+}
+
+.open-answer { resize: vertical; }
+
 /* ---------- Quiz taking ---------- */
 .question-block {
     background: var(--bg-card);

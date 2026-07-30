@@ -1,6 +1,8 @@
 // ===================================================================
-// Logique de l'espace admin : auth, CRUD questions, import CSV/XLSX,
-// CRUD questionnaires, consultation des résultats.
+// Logique de l'espace admin : auth, CRUD questions (QCM unique/multiple/
+// ouverte + image, réservation examen), import CSV/XLSX, CRUD
+// questionnaires (entraînement/examen, chrono, fenêtre d'ouverture,
+// tentatives max, affichage du score), consultation des résultats.
 // ===================================================================
 
 const screens = {
@@ -17,6 +19,12 @@ function showScreen(name) {
 function escapeHtml(str) {
     return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+const QUESTION_TYPE_LABELS = {
+    qcm_unique: 'QCM unique',
+    qcm_multiple: 'QCM multiple',
+    ouverte: 'Ouverte',
+};
 
 let questions = [];
 let quizzes = [];
@@ -151,22 +159,30 @@ function renderCategoryFilter() {
     select.value = current;
 }
 
+function formatBonneReponse(q) {
+    if (q.type === 'ouverte') return '—';
+    if (q.type === 'qcm_multiple') return (q.bonne_reponse || '').split(',').map(l => l.toUpperCase()).join(' + ');
+    return (q.bonne_reponse || '').toUpperCase();
+}
+
 function renderQuestions() {
     const filter = document.getElementById('category-filter').value;
     const tbody = document.getElementById('questions-tbody');
     const filtered = filter ? questions.filter(q => q.categorie === filter) : questions;
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = filtered.map(q => `
         <tr>
             <td>${escapeHtml(q.categorie)}</td>
-            <td>${escapeHtml(q.enonce.slice(0, 80))}${q.enonce.length > 80 ? '…' : ''}</td>
-            <td>${q.bonne_reponse.toUpperCase()}</td>
+            <td>${QUESTION_TYPE_LABELS[q.type] || q.type}${q.image ? ' 🖼' : ''}</td>
+            <td>${escapeHtml(q.enonce.slice(0, 70))}${q.enonce.length > 70 ? '…' : ''}</td>
+            <td>${formatBonneReponse(q)}</td>
             <td>${q.points}</td>
+            <td>${q.examen_uniquement ? '<span class="pill warn">Examen</span>' : '—'}</td>
             <td>${q.actif ? '<span class="pill ok">Active</span>' : '<span class="pill">Inactive</span>'}</td>
             <td class="row-actions">
                 <button type="button" class="secondary edit-q-btn" data-id="${q.id}">Modifier</button>
@@ -183,6 +199,18 @@ document.getElementById('category-filter').addEventListener('change', renderQues
 
 const questionModal = document.getElementById('question-modal-overlay');
 const questionForm = document.getElementById('question-form');
+const qTypeSelect = document.getElementById('q-type');
+
+function updateQuestionTypeFields() {
+    const type = qTypeSelect.value;
+    document.getElementById('q-options-fields').classList.toggle('hidden', type === 'ouverte');
+    document.getElementById('q-ouverte-hint').style.display = type === 'ouverte' ? 'block' : 'none';
+    document.getElementById('q-bonne-unique-field').classList.toggle('hidden', type !== 'qcm_unique');
+    document.getElementById('q-bonne-multiple-field').classList.toggle('hidden', type !== 'qcm_multiple');
+    document.getElementById('q-a').required = type !== 'ouverte';
+    document.getElementById('q-b').required = type !== 'ouverte';
+}
+qTypeSelect.addEventListener('change', updateQuestionTypeFields);
 
 function openQuestionModal(id) {
     const modalMsg = document.getElementById('question-modal-msg');
@@ -190,8 +218,13 @@ function openQuestionModal(id) {
     questionForm.reset();
     document.getElementById('q-id').value = '';
     document.getElementById('q-points').value = 1;
+    document.getElementById('q-examen').checked = false;
     document.getElementById('q-actif').checked = true;
+    document.getElementById('q-type').value = 'qcm_unique';
+    document.getElementById('q-image-preview').classList.add('hidden');
+    document.getElementById('q-remove-image').checked = false;
     document.getElementById('question-modal-title').textContent = 'Nouvelle question';
+    questionForm.querySelectorAll('.q-bonne-multi').forEach(cb => cb.checked = false);
 
     if (id) {
         const q = questions.find(x => String(x.id) === String(id));
@@ -199,16 +232,30 @@ function openQuestionModal(id) {
             document.getElementById('question-modal-title').textContent = 'Modifier la question';
             document.getElementById('q-id').value = q.id;
             document.getElementById('q-categorie').value = q.categorie;
+            document.getElementById('q-type').value = q.type;
             document.getElementById('q-points').value = q.points;
             document.getElementById('q-enonce').value = q.enonce;
             document.getElementById('q-a').value = q.options.a || '';
             document.getElementById('q-b').value = q.options.b || '';
             document.getElementById('q-c').value = q.options.c || '';
             document.getElementById('q-d').value = q.options.d || '';
-            document.getElementById('q-bonne').value = q.bonne_reponse;
+            document.getElementById('q-examen').checked = q.examen_uniquement;
             document.getElementById('q-actif').checked = q.actif;
+
+            if (q.type === 'qcm_unique') {
+                document.getElementById('q-bonne').value = q.bonne_reponse || 'a';
+            } else if (q.type === 'qcm_multiple') {
+                const letters = (q.bonne_reponse || '').split(',');
+                questionForm.querySelectorAll('.q-bonne-multi').forEach(cb => cb.checked = letters.includes(cb.value));
+            }
+
+            if (q.image) {
+                document.getElementById('q-image-preview').classList.remove('hidden');
+                document.getElementById('q-image-preview-img').src = '../' + q.image;
+            }
         }
     }
+    updateQuestionTypeFields();
     questionModal.classList.remove('hidden');
 }
 
@@ -223,27 +270,34 @@ questionForm.addEventListener('submit', async (e) => {
     const saveBtn = document.getElementById('question-save-btn');
     saveBtn.disabled = true;
 
-    const payload = {
-        id: document.getElementById('q-id').value || null,
-        categorie: document.getElementById('q-categorie').value,
-        enonce: document.getElementById('q-enonce').value,
-        options: {
-            a: document.getElementById('q-a').value,
-            b: document.getElementById('q-b').value,
-            c: document.getElementById('q-c').value,
-            d: document.getElementById('q-d').value,
-        },
-        bonne_reponse: document.getElementById('q-bonne').value,
-        points: parseInt(document.getElementById('q-points').value, 10) || 1,
-        actif: document.getElementById('q-actif').checked,
-    };
+    const type = document.getElementById('q-type').value;
+    let bonneReponse = '';
+    if (type === 'qcm_unique') {
+        bonneReponse = document.getElementById('q-bonne').value;
+    } else if (type === 'qcm_multiple') {
+        bonneReponse = Array.from(questionForm.querySelectorAll('.q-bonne-multi:checked')).map(cb => cb.value).join(',');
+    }
+
+    const formData = new FormData();
+    const id = document.getElementById('q-id').value;
+    if (id) formData.append('id', id);
+    formData.append('categorie', document.getElementById('q-categorie').value);
+    formData.append('type', type);
+    formData.append('enonce', document.getElementById('q-enonce').value);
+    formData.append('option_a', document.getElementById('q-a').value);
+    formData.append('option_b', document.getElementById('q-b').value);
+    formData.append('option_c', document.getElementById('q-c').value);
+    formData.append('option_d', document.getElementById('q-d').value);
+    formData.append('bonne_reponse', bonneReponse);
+    formData.append('points', document.getElementById('q-points').value || 1);
+    formData.append('examen_uniquement', document.getElementById('q-examen').checked ? '1' : '');
+    formData.append('actif', document.getElementById('q-actif').checked ? '1' : '');
+    formData.append('remove_image', document.getElementById('q-remove-image').checked ? '1' : '');
+    const imageFile = document.getElementById('q-image').files[0];
+    if (imageFile) formData.append('image', imageFile);
 
     try {
-        const res = await fetch('../api/questions.php?action=save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+        const res = await fetch('../api/questions.php?action=save', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
             questionModal.classList.add('hidden');
@@ -322,6 +376,17 @@ document.getElementById('import-form').addEventListener('submit', async (e) => {
 });
 
 // ================= QUESTIONNAIRES =================
+
+// Convertit "YYYY-MM-DD HH:MM:SS" (serveur) <-> "YYYY-MM-DDTHH:MM" (datetime-local)
+function toDatetimeLocal(value) {
+    if (!value) return '';
+    return value.replace(' ', 'T').slice(0, 16);
+}
+function fromDatetimeLocal(value) {
+    if (!value) return '';
+    return value.replace('T', ' ') + ':00';
+}
+
 async function loadQuizzes() {
     const grid = document.getElementById('quizzes-grid');
     const msg = document.getElementById('quizzes-msg');
@@ -337,13 +402,20 @@ async function loadQuizzes() {
         msg.textContent = '';
         grid.innerHTML = quizzes.map(q => `
             <div class="card">
-                <h2>${escapeHtml(q.nom)}</h2>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <h2>${escapeHtml(q.nom)}</h2>
+                    <span class="pill ${q.type === 'examen' ? 'warn' : 'ok'}">${q.type === 'examen' ? 'Examen' : 'Entraînement'}</span>
+                </div>
                 <p>${escapeHtml(q.description || '')}</p>
                 <div class="meta">
                     <span class="pill">${q.nombre_questions} question(s)</span>
                     <span class="pill">Note sur ${q.note_max}</span>
                     <span class="pill">Seuil : ${q.seuil_reussite}</span>
                     <span class="pill ${q.questions_disponibles < q.nombre_questions ? 'warn' : 'ok'}">${q.questions_disponibles} question(s) disponible(s)</span>
+                    ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
+                    ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
+                    <span class="pill">${q.afficher_score ? 'Score affiché' : 'Score masqué'}</span>
+                    ${q.ouverture_debut || q.ouverture_fin ? `<span class="pill">Ouvert ${q.ouverture_debut ? 'du ' + q.ouverture_debut.slice(0, 16).replace('T', ' ') : ''}${q.ouverture_fin ? ' au ' + q.ouverture_fin.slice(0, 16).replace('T', ' ') : ''}</span>` : ''}
                     <span class="pill ${q.actif ? 'ok' : ''}">${q.actif ? 'Actif' : 'Inactif'}</span>
                 </div>
                 <div class="row-actions" style="margin-top:8px;">
@@ -362,15 +434,29 @@ async function loadQuizzes() {
 
 const quizModal = document.getElementById('quiz-modal-overlay');
 const quizForm = document.getElementById('quiz-form');
+const qzTypeSelect = document.getElementById('qz-type');
+
+function updateQuizTypeFields() {
+    const isExam = qzTypeSelect.value === 'examen';
+    document.getElementById('qz-ouverture-fields').classList.toggle('hidden', !isExam);
+    document.getElementById('qz-tentatives-field').classList.toggle('hidden', !isExam);
+}
+qzTypeSelect.addEventListener('change', updateQuizTypeFields);
 
 function openQuizModal(id) {
     const modalMsg = document.getElementById('quiz-modal-msg');
     modalMsg.textContent = '';
     quizForm.reset();
     document.getElementById('qz-id').value = '';
+    document.getElementById('qz-type').value = 'entrainement';
     document.getElementById('qz-nombre').value = 10;
     document.getElementById('qz-notemax').value = 20;
     document.getElementById('qz-seuil').value = 10;
+    document.getElementById('qz-duree').value = '';
+    document.getElementById('qz-tentatives').value = '';
+    document.getElementById('qz-ouverture-debut').value = '';
+    document.getElementById('qz-ouverture-fin').value = '';
+    document.getElementById('qz-afficher-score').checked = true;
     document.getElementById('qz-actif').checked = true;
     document.getElementById('quiz-modal-title').textContent = 'Nouveau questionnaire';
 
@@ -381,13 +467,20 @@ function openQuizModal(id) {
             document.getElementById('qz-id').value = q.id;
             document.getElementById('qz-nom').value = q.nom;
             document.getElementById('qz-desc').value = q.description || '';
+            document.getElementById('qz-type').value = q.type;
             document.getElementById('qz-categorie').value = q.categorie_filtre || '';
             document.getElementById('qz-nombre').value = q.nombre_questions;
             document.getElementById('qz-notemax').value = q.note_max;
             document.getElementById('qz-seuil').value = q.seuil_reussite;
+            document.getElementById('qz-duree').value = q.duree_minutes || '';
+            document.getElementById('qz-tentatives').value = q.tentatives_max || '';
+            document.getElementById('qz-ouverture-debut').value = toDatetimeLocal(q.ouverture_debut);
+            document.getElementById('qz-ouverture-fin').value = toDatetimeLocal(q.ouverture_fin);
+            document.getElementById('qz-afficher-score').checked = q.afficher_score;
             document.getElementById('qz-actif').checked = q.actif;
         }
     }
+    updateQuizTypeFields();
     quizModal.classList.remove('hidden');
 }
 
@@ -406,10 +499,16 @@ quizForm.addEventListener('submit', async (e) => {
         id: document.getElementById('qz-id').value || null,
         nom: document.getElementById('qz-nom').value,
         description: document.getElementById('qz-desc').value,
+        type: document.getElementById('qz-type').value,
         categorie_filtre: document.getElementById('qz-categorie').value,
         nombre_questions: parseInt(document.getElementById('qz-nombre').value, 10) || 1,
         note_max: parseFloat(document.getElementById('qz-notemax').value) || 20,
         seuil_reussite: parseFloat(document.getElementById('qz-seuil').value) || 0,
+        duree_minutes: document.getElementById('qz-duree').value || '',
+        tentatives_max: document.getElementById('qz-tentatives').value || '',
+        ouverture_debut: fromDatetimeLocal(document.getElementById('qz-ouverture-debut').value),
+        ouverture_fin: fromDatetimeLocal(document.getElementById('qz-ouverture-fin').value),
+        afficher_score: document.getElementById('qz-afficher-score').checked,
         actif: document.getElementById('qz-actif').checked,
     };
 
@@ -434,7 +533,7 @@ quizForm.addEventListener('submit', async (e) => {
 });
 
 async function deleteQuiz(id) {
-    if (!confirm('Supprimer ce questionnaire ? Les résultats associés seront également supprimés.')) return;
+    if (!confirm('Supprimer ce questionnaire ? Les tentatives déjà archivées seront conservées.')) return;
     try {
         const res = await fetch('../api/quizzes.php?action=delete', {
             method: 'POST',
@@ -449,6 +548,12 @@ async function deleteQuiz(id) {
 }
 
 // ================= RESULTATS =================
+const STATUT_LABELS = {
+    en_cours: '<span class="pill">En cours</span>',
+    terminee: '<span class="pill ok">Terminée</span>',
+    expiree: '<span class="pill warn">Expirée</span>',
+};
+
 async function loadAttempts() {
     const tbody = document.getElementById('attempts-tbody');
     try {
@@ -456,21 +561,34 @@ async function loadAttempts() {
         const attempts = await res.json();
 
         if (!attempts.length) {
-            tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = attempts.map(a => `
+        tbody.innerHTML = attempts.map(a => {
+            let noteCell = '—';
+            let resultCell = '—';
+            if (!a.afficher_score) {
+                noteCell = '<span class="pill">Masqué au candidat</span>';
+            } else if (a.score !== null) {
+                noteCell = `${a.score} / ${a.note_max}`;
+                resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
+            }
+            return `
             <tr>
                 <td>${escapeHtml(a.quiz_nom)}</td>
+                <td><span class="pill ${a.quiz_type === 'examen' ? 'warn' : 'ok'}">${a.quiz_type === 'examen' ? 'Examen' : 'Entraînement'}</span></td>
                 <td>${escapeHtml(a.candidat)}</td>
-                <td>${a.score} / ${a.note_max}</td>
-                <td>${a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>'}</td>
-                <td>${escapeHtml(a.created_at)}</td>
+                <td>${STATUT_LABELS[a.statut] || a.statut}</td>
+                <td>${noteCell}</td>
+                <td>${resultCell}</td>
+                <td>${escapeHtml(a.started_at)}</td>
+                <td>${escapeHtml(a.completed_at || '—')}</td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);">Erreur de chargement des résultats</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">Erreur de chargement des résultats</td></tr>`;
     }
 }
 
