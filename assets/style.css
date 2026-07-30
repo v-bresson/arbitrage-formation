@@ -221,6 +221,7 @@ body.has-fixed-header { padding-top: 0; }
     color: var(--text-secondary);
     white-space: nowrap;
     overflow-x: auto;
+    text-align: left;
 }
 
 .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
@@ -327,6 +328,22 @@ body.has-fixed-header { padding-top: 0; }
     flex-wrap: wrap;
     font-size: 0.75rem;
     color: var(--text-secondary);
+}
+
+/* ---------- Rôles : grille des cartes (2 colonnes fixes) ---------- */
+.roles-grid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+@media (max-width: 700px) {
+    .roles-grid { grid-template-columns: 1fr; }
+}
+
+/* Permissions d'un rôle : le libellé occupe toujours la même hauteur
+   (jusqu'à 2 lignes), pour que tous les menus déroulants d'une même
+   rangée restent alignés quel que soit le nombre de lignes du libellé
+   voisin. */
+.role-perm-field label {
+    min-height: 2.3em;
+    display: flex;
+    align-items: flex-end;
 }
 
 .pill {

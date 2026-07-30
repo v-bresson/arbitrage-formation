@@ -24,7 +24,6 @@
             <div class="brand"><img src="../assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
             <div style="display:flex;gap:14px;align-items:center;">
                 <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
-                <a href="../dashboard.php" class="secondary btn">Retour au site</a>
                 <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
             </div>
         </div>
@@ -164,7 +163,7 @@
                 <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
                     <button type="button" id="new-role-btn">+ Nouveau rôle</button>
                 </div>
-                <div class="grid" id="roles-grid"></div>
+                <div class="grid roles-grid" id="roles-grid"></div>
                 <p class="msg" id="roles-msg"></p>
             </div>
 

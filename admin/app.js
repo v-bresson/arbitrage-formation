@@ -1092,7 +1092,7 @@ qaWatchEffect(() => {
             ${isSuperAdmin ? '<p class="modal-hint" style="margin:0;">Accès total à toutes les sections, non modifiable.</p>' : `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
                 ${Object.keys(permissionSections).map(section => `
-                <div class="field" style="margin:0;">
+                <div class="field role-perm-field" style="margin:0;">
                     <label>${escapeHtml(permissionSections[section])}</label>
                     <select class="role-perm-select" data-section="${section}">
                         <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
