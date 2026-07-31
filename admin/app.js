@@ -1140,11 +1140,9 @@ function renderCandidatsTable(users, emptyMsg) {
         tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">${escapeHtml(emptyMsg)}</td></tr>`;
         return;
     }
-    const formateurs = vm.users.filter(u => (u.roles || []).includes('formateur') || (u.roles || []).includes('membre_cra'));
     const canEdit = canManage('users');
 
     tbody.innerHTML = users.map(u => {
-        const assignedIds = (u.formateurs || []).map(f => String(f.id));
         return `
         <tr data-id="${u.id}">
             <td>${escapeHtml(u.username)}</td>
@@ -1158,9 +1156,7 @@ function renderCandidatsTable(users, emptyMsg) {
                 <option value="">—</option>
                 ${OPTIONS_PRATIQUE.map(o => `<option value="${escapeHtml(o)}" ${u.option_pratique === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
             </select>` : escapeHtml(u.option_pratique || '—')}</td>
-            <td>${canEdit ? `<select multiple class="quick-formateur-select" data-id="${u.id}" size="${Math.min(4, Math.max(2, formateurs.length))}" style="min-width:170px;">
-                ${formateurs.map(f => `<option value="${f.id}" ${assignedIds.includes(String(f.id)) ? 'selected' : ''}>${escapeHtml(formateurLabel(f))}</option>`).join('')}
-            </select>` : escapeHtml((u.formateurs || []).map(formateurLabel).join(', ') || '—')}</td>
+            <td>${escapeHtml((u.formateurs || []).map(formateurLabel).join(', ') || '—')}</td>
             <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
             <td class="row-actions">
                 ${canEdit ? `<button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button><button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>` : ''}
@@ -1173,10 +1169,6 @@ function renderCandidatsTable(users, emptyMsg) {
     tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
     tbody.querySelectorAll('.quick-niveau-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { niveau_formation: sel.value })));
     tbody.querySelectorAll('.quick-option-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { option_pratique: sel.value })));
-    tbody.querySelectorAll('.quick-formateur-select').forEach(sel => sel.addEventListener('change', () => {
-        const ids = Array.from(sel.selectedOptions).map(o => o.value);
-        quickSaveCandidat(sel.dataset.id, { formateur_ids: ids });
-    }));
 }
 
 // Libellé d'affichage d'un formateur : "Prénom Nom" si renseigné, sinon
