@@ -26,6 +26,28 @@
 <div id="list-screen" class="page wide hidden">
     <div class="grid" id="quiz-grid"></div>
     <p class="msg" id="list-msg" style="text-align:center;margin-top:20px;"></p>
+
+    <!-- ---------- MES TENTATIVES : historique + relecture ---------- -->
+    <div id="attempts-history-section" style="margin-top:32px;">
+        <h2 style="margin-bottom:16px;text-align:left;">Mes tentatives</h2>
+        <div class="table-wrap panel" style="padding:0;">
+            <table>
+                <thead><tr><th>QCM Examen</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th></th></tr></thead>
+                <tbody id="attempts-history-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ================= ECRAN RELECTURE D'UNE TENTATIVE PASSEE ================= -->
+<div id="history-review-screen" class="page wide hidden">
+    <h2 id="history-review-title" style="margin-bottom:6px;"></h2>
+    <p id="history-review-meta" style="color:var(--text-secondary);margin-bottom:16px;"></p>
+    <div id="history-review-score" class="panel hidden" style="text-align:center;align-items:center;margin-bottom:20px;"></div>
+    <div id="history-review-container"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button type="button" class="secondary" id="history-review-back-btn">Retour</button>
+    </div>
 </div>
 
 <!-- ================= ECRAN DE DEMARRAGE ================= -->
@@ -104,14 +126,27 @@ function escapeHtml(str) {
 // de cet état réactif — voir la note dans assets/mvvm.js : un ré-rendu
 // complet à chaque réponse cochée ou chaque tic du minuteur casserait le
 // focus des champs et la sélection en cours.
+const RESULT_PILLS = {
+    reussi: '<span class="pill ok">Réussi</span>',
+    non_valide: '<span class="pill warn">Non validé</span>',
+    en_attente: '<span class="pill">En attente de correction</span>',
+};
+
+const STATUT_LABELS = {
+    en_cours: '<span class="pill">En cours</span>',
+    terminee: '<span class="pill ok">Terminée</span>',
+    expiree: '<span class="pill warn">Expirée</span>',
+};
+
 const vm = qaReactive({
-    screen: 'list', // 'list' | 'start' | 'quiz' | 'review' | 'result'
+    screen: 'list', // 'list' | 'start' | 'quiz' | 'review' | 'result' | 'history-review'
     quizzes: null, // null = pas encore chargé
     listMsg: '',
     currentQuiz: null,
     startError: '',
     startBusy: false,
     result: null, // { withScore, note, note_max, reussi, detail, expiredMsg } | { withScore: false }
+    attemptsHistory: null, // null = pas encore chargé
 });
 
 function bind() {
@@ -120,16 +155,11 @@ function bind() {
     document.getElementById('quiz-screen').classList.toggle('hidden', vm.screen !== 'quiz');
     document.getElementById('review-screen').classList.toggle('hidden', vm.screen !== 'review');
     document.getElementById('result-screen').classList.toggle('hidden', vm.screen !== 'result');
+    document.getElementById('history-review-screen').classList.toggle('hidden', vm.screen !== 'history-review');
 
     const grid = document.getElementById('quiz-grid');
     document.getElementById('list-msg').textContent = vm.listMsg;
     if (vm.quizzes && vm.quizzes.length) {
-        const RESULT_PILLS = {
-            reussi: '<span class="pill ok">Réussi</span>',
-            non_valide: '<span class="pill warn">Non validé</span>',
-            en_attente: '<span class="pill">En attente de correction</span>',
-        };
-
         grid.innerHTML = vm.quizzes.map(q => {
             const closed = !!q.ferme;
             const notEnough = !q.suffisant;
@@ -165,6 +195,39 @@ function bind() {
         grid.querySelectorAll('.start-quiz-btn').forEach(btn => btn.addEventListener('click', () => openStartScreen(btn.dataset)));
     } else {
         grid.innerHTML = '';
+    }
+
+    const historyTbody = document.getElementById('attempts-history-tbody');
+    const history = vm.attemptsHistory || [];
+    document.getElementById('attempts-history-section').classList.toggle('hidden', vm.attemptsHistory !== null && history.length === 0);
+    if (!history.length) {
+        historyTbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-secondary);">Aucune tentative pour le moment.</td></tr>`;
+    } else {
+        historyTbody.innerHTML = history.map(a => {
+            let noteCell = '—';
+            let resultCell = '—';
+            if (a.statut !== 'en_cours' && a.resultat_publie) {
+                if (a.afficher_score) {
+                    noteCell = `${a.score} / ${a.note_max}`;
+                    resultCell = a.reussi ? RESULT_PILLS.reussi : RESULT_PILLS.non_valide;
+                } else {
+                    resultCell = '<span class="pill">Corrigé</span>';
+                }
+            } else if (a.statut !== 'en_cours') {
+                resultCell = RESULT_PILLS.en_attente;
+            }
+            const canReview = a.statut !== 'en_cours';
+            return `
+            <tr>
+                <td>${escapeHtml(a.quiz_nom)}</td>
+                <td>${STATUT_LABELS[a.statut] || a.statut}</td>
+                <td>${noteCell}</td>
+                <td>${resultCell}</td>
+                <td>${escapeHtml(a.started_at)}</td>
+                <td class="row-actions">${canReview ? `<button type="button" class="secondary history-review-btn" data-id="${a.id}">Relecture</button>` : ''}</td>
+            </tr>`;
+        }).join('');
+        historyTbody.querySelectorAll('.history-review-btn').forEach(btn => btn.addEventListener('click', () => openHistoryReview(btn.dataset.id)));
     }
 
     if (vm.currentQuiz) {
@@ -251,6 +314,91 @@ async function loadQuizList() {
     }
 }
 
+async function loadAttemptsHistory() {
+    try {
+        const res = await fetch('api/attempt.php?action=my-attempts');
+        if (res.status === 401) { window.location.href = 'index.php'; return; }
+        vm.attemptsHistory = await res.json();
+    } catch (err) {
+        vm.attemptsHistory = [];
+    }
+}
+
+// ---------- Relecture d'une tentative passée (voir #history-review-screen) ----------
+// Même principe d'affichage que la relecture avant envoi (renderReview) :
+// toutes les options visibles, réponse saisie en surbrillance ; si le
+// résultat a été publié, la bonne réponse est en plus signalée en vert et
+// une réponse fausse en rouge, avec le score au-dessus.
+async function openHistoryReview(id) {
+    try {
+        const res = await fetch('api/attempt.php?action=review&id=' + encodeURIComponent(id));
+        if (!res.ok) return;
+        const t = await res.json();
+
+        document.getElementById('history-review-title').textContent = t.quiz_nom;
+        document.getElementById('history-review-meta').textContent =
+            `Débuté le ${t.started_at}${t.completed_at ? ', terminé le ' + t.completed_at : ''}`;
+
+        const scoreEl = document.getElementById('history-review-score');
+        if (t.resultat_publie && t.afficher_score) {
+            scoreEl.classList.remove('hidden');
+            scoreEl.innerHTML = `
+                <p style="color:var(--text-secondary);">Votre note</p>
+                <div class="result-score ${t.reussi ? 'ok' : 'ko'}">${t.score} / ${t.note_max}</div>
+                <div class="pill ${t.reussi ? 'ok' : 'warn'}" style="font-size:0.95rem;padding:8px 18px;">${t.reussi ? 'Réussi' : 'Non validé'}</div>
+            `;
+        } else if (t.resultat_publie) {
+            scoreEl.classList.remove('hidden');
+            scoreEl.innerHTML = `<p style="font-size:1rem;">Ce QCM Examen a été corrigé, mais le résultat n'est pas affiché pour ce questionnaire.</p>`;
+        } else {
+            scoreEl.classList.remove('hidden');
+            scoreEl.innerHTML = `<p style="font-size:1rem;color:var(--text-secondary);">Le résultat de cette tentative n'a pas encore été publié.</p>`;
+        }
+
+        const container = document.getElementById('history-review-container');
+        container.innerHTML = t.questions.map((q, i) => {
+            const image = q.image ? `<img src="${escapeHtml(q.image)}" alt="" class="question-image">` : '';
+            let body;
+
+            if (q.type === 'ouverte') {
+                body = q.reponse_donnee
+                    ? `<div class="option-label selected" style="cursor:default;"><span style="white-space:pre-wrap;">${escapeHtml(q.reponse_donnee)}</span></div>`
+                    : '<p style="color:var(--text-secondary);">Sans réponse</p>';
+            } else {
+                const given = q.type === 'qcm_multiple'
+                    ? (Array.isArray(q.reponse_donnee) ? q.reponse_donnee : [])
+                    : (q.reponse_donnee ? [q.reponse_donnee] : []);
+                const correct = (q.bonne_reponse || '').split(',').filter(Boolean);
+                body = Object.entries(q.options).map(([key, text]) => {
+                    const isGiven = given.includes(key);
+                    const isCorrect = t.resultat_publie && correct.includes(key);
+                    const classes = ['option-label'];
+                    if (isGiven) classes.push('selected');
+                    if (isCorrect) classes.push('correct');
+                    if (isGiven && t.resultat_publie && !isCorrect) classes.push('incorrect');
+                    return `<div class="${classes.join(' ')}" style="cursor:default;"><span>${escapeHtml(text)}</span></div>`;
+                }).join('');
+            }
+
+            const pointsInfo = t.resultat_publie && q.points_max !== undefined
+                ? `<p style="color:var(--text-secondary);font-size:0.85rem;">${q.points_attribues} / ${q.points_max} point(s)</p>` : '';
+
+            return `
+            <div class="question-block">
+                <h3>${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span>${q.type === 'qcm_multiple' ? '<span class="pill warn">Réponses multiples</span>' : ''}</h3>
+                ${image}
+                ${body}
+                ${pointsInfo}
+            </div>`;
+        }).join('');
+
+        vm.screen = 'history-review';
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    } catch (err) { /* pas bloquant */ }
+}
+
+document.getElementById('history-review-back-btn').addEventListener('click', () => { vm.screen = 'list'; });
+
 function openStartScreen(dataset) {
     vm.currentQuiz = {
         id: dataset.id, nom: dataset.nom, desc: dataset.desc,
@@ -262,7 +410,7 @@ function openStartScreen(dataset) {
 }
 
 document.getElementById('back-to-list-btn').addEventListener('click', () => { vm.screen = 'list'; });
-document.getElementById('back-home-btn').addEventListener('click', () => { vm.screen = 'list'; loadQuizList(); });
+document.getElementById('back-home-btn').addEventListener('click', () => { vm.screen = 'list'; loadQuizList(); loadAttemptsHistory(); });
 
 document.getElementById('start-btn').addEventListener('click', async () => {
     vm.startError = '';
@@ -554,6 +702,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
     if (!ok) return;
     vm.screen = 'list';
     loadQuizList();
+    loadAttemptsHistory();
 })();
 </script>
 

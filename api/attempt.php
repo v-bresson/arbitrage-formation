@@ -432,6 +432,93 @@ if ($action === 'submit') {
     exit;
 }
 
+// Historique complet des tentatives du candidat connecté (toutes, y
+// compris en cours), affiché sous les tuiles de QCM Examen (voir
+// quiz.php) avec un bouton de relecture par tentative terminée.
+if ($action === 'my-attempts') {
+    $candidat = $_SESSION['username'];
+    $stmt = $pdo->prepare("SELECT id, quiz_id, quiz_nom, statut, score, note_max, reussi, afficher_score, resultat_publie, started_at, completed_at
+        FROM tentatives WHERE candidat = ? ORDER BY started_at DESC");
+    $stmt->execute([$candidat]);
+    echo json_encode(array_map(function ($r) {
+        return [
+            'id' => (int)$r['id'],
+            'quiz_id' => $r['quiz_id'] !== null ? (int)$r['quiz_id'] : null,
+            'quiz_nom' => $r['quiz_nom'],
+            'statut' => $r['statut'],
+            'score' => $r['score'] !== null ? (float)$r['score'] : null,
+            'note_max' => (float)$r['note_max'],
+            'reussi' => $r['reussi'] !== null ? (bool)$r['reussi'] : null,
+            'afficher_score' => (bool)$r['afficher_score'],
+            'resultat_publie' => (bool)$r['resultat_publie'],
+            'started_at' => $r['started_at'],
+            'completed_at' => $r['completed_at'],
+        ];
+    }, $stmt->fetchAll()));
+    exit;
+}
+
+// Relecture d'une tentative terminée par son propre candidat : réponses
+// saisies toujours visibles, mais la correction (bonne réponse, points,
+// score) n'est révélée que si le résultat a été publié (voir
+// resultat_publie, api/quizzes.php action grade_attempt) — sinon on ne
+// ferait que reproduire l'écran de résultat en avance sur la correction.
+if ($action === 'review') {
+    $id = (int)($_GET['id'] ?? 0);
+    $candidat = $_SESSION['username'];
+    $stmt = $pdo->prepare("SELECT * FROM tentatives WHERE id=? AND candidat=? AND statut != 'en_cours'");
+    $stmt->execute([$id, $candidat]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
+        exit;
+    }
+
+    $questions = json_decode($t['questions_json'], true) ?: [];
+    $reponses = json_decode($t['reponses_json'] ?? 'null', true) ?? [];
+    $publie = (bool)$t['resultat_publie'];
+    $detailByQid = [];
+    foreach (json_decode($t['details'] ?? 'null', true) ?? [] as $d) {
+        $detailByQid[$d['question_id']] = $d;
+    }
+
+    $questionsOut = array_map(function ($q) use ($reponses, $publie, $detailByQid) {
+        $out = [
+            'id' => $q['id'],
+            'categorie' => $q['categorie'],
+            'type' => $q['type'],
+            'enonce' => $q['enonce'],
+            'image' => $q['image'] ?? null,
+            'options' => array_filter($q['options'] ?? []),
+            'reponse_donnee' => $reponses[$q['id']] ?? ($reponses[(string)$q['id']] ?? null),
+        ];
+        if ($publie) {
+            $d = $detailByQid[$q['id']] ?? [];
+            $out['bonne_reponse'] = $q['bonne_reponse'] ?? null;
+            $out['points_max'] = (int)$q['points'];
+            $out['points_attribues'] = array_key_exists('points', $d) ? (float)$d['points'] : (($q['type'] !== 'ouverte' && ($d['ok'] ?? false)) ? (int)$q['points'] : 0);
+        }
+        return $out;
+    }, $questions);
+
+    echo json_encode([
+        'id' => (int)$t['id'],
+        'quiz_nom' => $t['quiz_nom'],
+        'statut' => $t['statut'],
+        'started_at' => $t['started_at'],
+        'completed_at' => $t['completed_at'],
+        'resultat_publie' => $publie,
+        'afficher_score' => (bool)$t['afficher_score'],
+        'note_max' => (float)$t['note_max'],
+        'seuil_reussite' => (float)$t['seuil_reussite'],
+        'score' => ($publie && $t['score'] !== null) ? (float)$t['score'] : null,
+        'reussi' => ($publie && $t['reussi'] !== null) ? (bool)$t['reussi'] : null,
+        'questions' => $questionsOut,
+    ]);
+    exit;
+}
+
 if ($action === 'my-stats') {
     // Le nombre total de tentatives est visible immédiatement, mais la
     // réussite/moyenne ne compte que les tentatives dont le résultat a été
