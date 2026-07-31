@@ -118,6 +118,7 @@ const vm = qaReactive({
     tilesMsg: '',
     manageMode: false,
     adminTiles: null,
+    formateurACorriger: 0,
 });
 
 function canManageTiles() {
@@ -132,7 +133,15 @@ function bind() {
         spaces.push({ nom: 'Espace candidat', description: 'Vos stages, questionnaires et parcours de formation.', href: 'candidate.php', icone: 'target' });
     }
     if (vm.hasFormateurAccess) {
-        spaces.push({ nom: 'Espace formateur', description: 'Suivi des candidats : questions, questionnaires et résultats.', href: 'formateur.php', icone: 'users' });
+        spaces.push({
+            nom: 'Espace formateur',
+            description: 'Suivi des candidats : questions, questionnaires et résultats.',
+            alert: vm.formateurACorriger
+                ? `<div class="tile-alert">${vm.formateurACorriger} correction${vm.formateurACorriger > 1 ? 's' : ''} en attente</div>`
+                : '',
+            href: 'formateur.php',
+            icone: 'users',
+        });
     }
     if (vm.hasPureAdminAccess) {
         spaces.push({ nom: 'Administration', description: 'Comptes utilisateurs et maintenance système.', href: 'admin/index.php', icone: 'lock' });
@@ -146,6 +155,7 @@ function bind() {
             </div>
             <h2>${escapeHtml(s.nom)}</h2>
             <p>${escapeHtml(s.description)}</p>
+            ${s.alert || ''}
         </a>
     `).join('');
 
@@ -382,6 +392,15 @@ async function loadTiles() {
 }
 
 // ---------- Méthodes du ViewModel ----------
+async function loadFormateurACorriger() {
+    try {
+        const res = await fetch('api/mes_candidats.php?action=dashboard_stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        vm.formateurACorriger = data.a_corriger || 0;
+    } catch (err) { /* pas bloquant */ }
+}
+
 async function init() {
     try {
         const res = await fetch('api/auth.php', {
@@ -399,6 +418,7 @@ async function init() {
         vm.hasFormateurAccess = !!data.has_formateur_access;
         vm.hasPureAdminAccess = !!data.has_pure_admin_access;
 
+        if (vm.hasFormateurAccess) await loadFormateurACorriger();
         await loadTiles();
     } catch (err) {
         window.location.href = 'index.php';

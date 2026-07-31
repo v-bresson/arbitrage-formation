@@ -94,7 +94,10 @@ function bind() {
         const nb = s ? s.a_corriger : 0;
         tiles.push({
             nom: 'Résultats QCM Examen',
-            description: nb ? `${nb} correction${nb > 1 ? 's' : ''} en attente.` : 'Aucune correction en attente.',
+            description: 'Suivre et corriger les tentatives des candidats.',
+            alert: nb
+                ? `<div class="tile-alert">${nb} correction${nb > 1 ? 's' : ''} en attente</div>`
+                : `<div class="tile-alert ok">Aucune correction en attente</div>`,
             href: 'formateur-resultats.php',
             icone: 'trophy',
         });
@@ -110,6 +113,7 @@ function bind() {
             </div>
             <h2>${escapeHtml(t.nom)}</h2>
             <p>${escapeHtml(t.description)}</p>
+            ${t.alert || ''}
         </a>
     `).join('');
 }
