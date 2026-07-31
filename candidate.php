@@ -184,7 +184,7 @@ const vm = qaReactive({
 });
 
 function canManageTiles() {
-    return !vm.formateurExclusiveView && (vm.role === 'super_admin' || vm.permissions.tiles === 'manage');
+    return vm.role === 'super_admin' || vm.permissions.tiles === 'manage';
 }
 
 function bind() {
@@ -202,9 +202,17 @@ function bind() {
 
     // En mode paramétrage, seule l'organisation des tuiles est affichée
     // (profil et statistiques masqués) pour ne pas mélanger la réorganisation
-    // des tuiles avec celle, distincte, des cartes de statistiques.
+    // des tuiles avec celle, distincte, des cartes de statistiques. Un compte
+    // Formateur (vue exclusive, voir includes/permissions.php) qui a aussi le
+    // droit de gérer les tuiles bascule temporairement sur la vue candidat
+    // (tuiles) tant que le mode paramétrage est actif.
     document.getElementById('profile-card').classList.toggle('hidden', inManageMode);
     document.getElementById('stats-grid').classList.toggle('hidden', inManageMode);
+
+    if (vm.formateurExclusiveView) {
+        document.getElementById('candidate-view').classList.toggle('hidden', !inManageMode);
+        document.getElementById('formateur-view').classList.toggle('hidden', inManageMode);
+    }
 
     if (!inManageMode) renderStats();
 
