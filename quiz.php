@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcheryOps - Arbitrage — Candidats arbitres</title>
+<title>ArcheryOps - Arbitrage — QCM Examen</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="has-fixed-header">
@@ -12,9 +12,13 @@
     <div class="site-header-row">
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
         <h1 style="flex:1;text-align:center;font-size:1.3rem;color:var(--text-primary);">Gestionnaire de formations</h1>
+        <div style="display:flex;gap:14px;align-items:center;">
+            <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
+            <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>
+        </div>
     </div>
 </header>
-<nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><a href="candidate.php">Espace candidat</a><span class="sep">/</span><span class="current">Candidats arbitres</span></div></nav>
+<nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><a href="candidate.php">Espace candidat</a><span class="sep">/</span><span class="current">QCM Examen</span></div></nav>
 <div class="header-spacer"></div>
 <script src="assets/header-fix.js"></script>
 
@@ -33,7 +37,7 @@
         <p style="color:var(--text-secondary);font-size:0.9rem;">Vous allez commencer en tant que <strong id="start-candidat-name"></strong>.</p>
         <div style="display:flex;gap:10px;margin-top:10px;">
             <button type="button" class="secondary" id="back-to-list-btn">Retour</button>
-            <button type="button" id="start-btn" style="flex:1;">Commencer le questionnaire</button>
+            <button type="button" id="start-btn" style="flex:1;">Commencer le QCM Examen</button>
         </div>
         <div class="msg error" id="start-error"></div>
     </div>
@@ -64,7 +68,7 @@
         </div>
         <div id="result-no-score" class="hidden">
             <p style="font-size:1.1rem;margin-bottom:8px;">Vos réponses ont bien été enregistrées.</p>
-            <p style="color:var(--text-secondary);">Le résultat de ce questionnaire ne s'affiche pas immédiatement et vous sera communiqué séparément.</p>
+            <p style="color:var(--text-secondary);">Le résultat de ce QCM Examen ne s'affiche pas immédiatement et vous sera communiqué séparément.</p>
         </div>
         <p class="msg error" id="result-expired-msg"></p>
         <button type="button" id="back-home-btn" style="margin-top:16px;">Retour à la liste</button>
@@ -152,7 +156,7 @@ function bind() {
     document.getElementById('start-error').textContent = vm.startError;
     const startBtn = document.getElementById('start-btn');
     startBtn.disabled = vm.startBusy;
-    startBtn.textContent = vm.startBusy ? 'Chargement...' : 'Commencer le questionnaire';
+    startBtn.textContent = vm.startBusy ? 'Chargement...' : 'Commencer le QCM Examen';
 
     if (vm.result) {
         document.getElementById('result-expired-msg').textContent = vm.result.expiredMsg || '';
@@ -192,6 +196,7 @@ async function checkAuth() {
             return false;
         }
         currentUsername = data.username;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
         return true;
     } catch (err) {
         window.location.href = 'index.php';
@@ -205,7 +210,7 @@ async function loadQuizList() {
         if (res.status === 401) { window.location.href = 'index.php'; return; }
         const quizzes = await res.json();
         vm.quizzes = quizzes;
-        vm.listMsg = quizzes.length ? '' : "Aucun questionnaire n'est disponible pour le moment.";
+        vm.listMsg = quizzes.length ? '' : "Aucun QCM Examen n'est disponible pour le moment.";
     } catch (err) {
         vm.listMsg = 'Erreur de connexion au serveur';
     }
@@ -243,7 +248,7 @@ document.getElementById('start-btn').addEventListener('click', async () => {
             setupTimer(data.started_at, data.duree_minutes);
             vm.screen = 'quiz';
         } else {
-            vm.startError = data.message || 'Impossible de démarrer le questionnaire';
+            vm.startError = data.message || 'Impossible de démarrer le QCM Examen';
         }
     } catch (err) {
         vm.startError = 'Erreur de connexion au serveur';
@@ -399,6 +404,17 @@ async function submitQuiz(auto) {
 }
 
 document.getElementById('submit-quiz-btn').addEventListener('click', () => submitQuiz(false));
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    try {
+        await fetch('api/auth.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=logout',
+        });
+    } catch (err) { /* on déconnecte quand même côté écran */ }
+    window.location.href = 'index.php';
+});
 
 document.getElementById('year').textContent = new Date().getFullYear();
 

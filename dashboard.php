@@ -56,7 +56,7 @@
                     <label>Type</label>
                     <select id="tile-type">
                         <option value="lien">Lien (URL)</option>
-                        <option value="questionnaire">Candidats arbitres (module intégré)</option>
+                        <option value="questionnaire">QCM Examen (module intégré)</option>
                     </select>
                 </div>
                 <div class="field">
@@ -213,7 +213,7 @@ function enableDragReorder(grid, onReorder) {
 }
 
 // ---------- Tuiles personnalisées (mode paramétrage, scope="accueil") ----------
-const TILE_TYPE_LABELS = { questionnaire: 'Candidats arbitres (module intégré)', lien: 'Lien' };
+const TILE_TYPE_LABELS = { questionnaire: 'QCM Examen (module intégré)', lien: 'Lien' };
 
 function renderManageTiles(grid) {
     const tiles = vm.adminTiles || [];

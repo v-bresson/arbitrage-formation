@@ -122,7 +122,7 @@
                 <div class="field">
                     <label>Type</label>
                     <select id="tile-type">
-                        <option value="questionnaire">Candidats arbitres (module intégré)</option>
+                        <option value="questionnaire">QCM Examen (module intégré)</option>
                         <option value="lien">Lien (URL)</option>
                     </select>
                 </div>
@@ -183,6 +183,7 @@ const vm = qaReactive({
     manageMode: false,
     adminTiles: null,
     formateurExclusiveView: false,
+    formateurHasSearched: false,
 });
 
 function canManageTiles() {
@@ -215,6 +216,17 @@ function bind() {
 
     const grid = document.getElementById('tiles-grid');
     const msg = document.getElementById('tiles-msg');
+
+    // Vue formateur/super-admin : les tuiles ne s'affichent qu'une fois une
+    // recherche lancée (pas par défaut à l'arrivée sur la page).
+    const hideTilesUntilSearch = vm.formateurExclusiveView && !inManageMode && !vm.formateurHasSearched;
+    grid.classList.toggle('hidden', hideTilesUntilSearch);
+    msg.classList.toggle('hidden', hideTilesUntilSearch);
+    if (hideTilesUntilSearch) {
+        grid.innerHTML = '';
+        msg.textContent = '';
+        return;
+    }
 
     if (inManageMode) {
         msg.textContent = '';
@@ -334,7 +346,7 @@ async function loadStats() {
 }
 
 // ---------- Tuiles : mode paramétrage (super-admin / droit "tiles") ----------
-const TILE_TYPE_LABELS = { questionnaire: 'Candidats arbitres (module intégré)', lien: 'Lien' };
+const TILE_TYPE_LABELS = { questionnaire: 'QCM Examen (module intégré)', lien: 'Lien' };
 
 function renderManageTiles(grid) {
     const tiles = vm.adminTiles || [];
@@ -563,7 +575,10 @@ async function searchCandidats(q) {
 }
 
 // La liste des candidats ne s'affiche que si une recherche est lancée
-// (aucun affichage par défaut de tous les candidats assignés).
+// (aucun affichage par défaut de tous les candidats assignés). Les tuiles
+// (voir bind()) restent elles aussi masquées tant qu'aucune recherche ou
+// sélection de fiche n'a eu lieu, puis restent affichées ensuite même si
+// le champ de recherche est vidé.
 document.getElementById('candidats-search-input').addEventListener('input', (e) => {
     clearTimeout(candidatsSearchTimer);
     const q = e.target.value.trim();
@@ -575,11 +590,13 @@ document.getElementById('candidats-search-input').addEventListener('input', (e) 
         return;
     }
     resultsBox.classList.remove('hidden');
+    vm.formateurHasSearched = true;
     candidatsSearchTimer = setTimeout(() => searchCandidats(q), 250);
 });
 
 async function showFiche(id) {
     try {
+        vm.formateurHasSearched = true;
         const res = await fetch('api/mes_candidats.php?action=fiche&id=' + encodeURIComponent(id));
         if (!res.ok) return;
         const f = await res.json();
