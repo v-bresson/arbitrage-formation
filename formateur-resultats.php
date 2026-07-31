@@ -38,7 +38,7 @@
          chacun indépendamment et désalignaient les colonnes. -->
     <div class="table-wrap panel" style="padding:0;">
         <table>
-            <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Date</th><th></th></tr></thead>
+            <thead><tr><th>QCM Examen</th><th>Nom</th><th>Prénom</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Date</th><th></th></tr></thead>
             <tbody id="attempts-tbody"></tbody>
         </table>
     </div>
@@ -80,6 +80,10 @@ const STATUT_LABELS = {
 };
 
 let canManageAttempts = false;
+// Tentatives (api/quizzes.php) ne renvoient que l'identifiant du candidat ;
+// on les recoupe avec la liste des candidats visibles (api/mes_candidats.php)
+// pour afficher nom/prénom plutôt que l'identifiant technique.
+let candidatsByUsername = {};
 
 // Même logique d'affichage que l'onglet Résultats de l'administration
 // (admin/app.js, renderAttemptRow) : « à corriger » = résultat pas publié.
@@ -103,10 +107,12 @@ function renderAttemptRow(a) {
     const action = (canManageAttempts && a.statut !== 'en_cours')
         ? `<button type="button" class="secondary grade-attempt-btn" data-id="${a.id}" style="padding:6px 12px;font-size:0.85rem;">${a.resultat_publie ? 'Revoir' : 'Corriger'}</button>`
         : '';
+    const c = candidatsByUsername[a.candidat];
     return `
     <tr>
         <td>${escapeHtml(a.quiz_nom)}</td>
-        <td>${escapeHtml(a.candidat)}</td>
+        <td>${escapeHtml(c ? c.nom : '') || '—'}</td>
+        <td>${escapeHtml(c ? c.prenom : '') || '—'}</td>
         <td>${STATUT_LABELS[a.statut] || a.statut}</td>
         <td>${noteCell}</td>
         <td>${resultCell}</td>
@@ -117,12 +123,24 @@ function renderAttemptRow(a) {
 }
 
 function sectionRow(label) {
-    return `<tr><td colspan="7" style="background:var(--bg-card-hover);font-weight:600;color:var(--text-secondary);">${escapeHtml(label)}</td></tr>`;
+    return `<tr><td colspan="8" style="background:var(--bg-card-hover);font-weight:600;color:var(--text-secondary);">${escapeHtml(label)}</td></tr>`;
+}
+
+async function loadCandidatsByUsername() {
+    try {
+        const res = await fetch('api/mes_candidats.php?action=list');
+        if (!res.ok) return;
+        const list = await res.json();
+        if (Array.isArray(list)) {
+            candidatsByUsername = Object.fromEntries(list.map(c => [c.username, c]));
+        }
+    } catch (err) { /* pas bloquant, on affichera un tiret */ }
 }
 
 async function loadAttempts() {
     const tbody = document.getElementById('attempts-tbody');
     try {
+        await loadCandidatsByUsername();
         const res = await fetch('api/quizzes.php?action=attempts');
         if (res.status === 401) { window.location.href = 'index.php'; return; }
         if (res.status === 403) {
@@ -132,7 +150,7 @@ async function loadAttempts() {
         }
         const attempts = await res.json();
         if (!Array.isArray(attempts) || !attempts.length) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">Aucun résultat pour le moment.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucun résultat pour le moment.</td></tr>`;
             return;
         }
         const todo = attempts.filter(a => a.statut === 'en_cours' || !a.resultat_publie);
@@ -140,9 +158,9 @@ async function loadAttempts() {
 
         tbody.innerHTML =
             sectionRow('À corriger') +
-            (todo.length ? todo.map(renderAttemptRow).join('') : `<tr><td colspan="7" style="color:var(--text-secondary);">Rien à corriger pour le moment.</td></tr>`) +
+            (todo.length ? todo.map(renderAttemptRow).join('') : `<tr><td colspan="8" style="color:var(--text-secondary);">Rien à corriger pour le moment.</td></tr>`) +
             sectionRow('Déjà corrigés') +
-            (done.length ? done.map(renderAttemptRow).join('') : `<tr><td colspan="7" style="color:var(--text-secondary);">Aucun résultat corrigé pour le moment.</td></tr>`);
+            (done.length ? done.map(renderAttemptRow).join('') : `<tr><td colspan="8" style="color:var(--text-secondary);">Aucun résultat corrigé pour le moment.</td></tr>`);
 
         tbody.querySelectorAll('.grade-attempt-btn').forEach(btn => btn.addEventListener('click', () => openGradeModal(btn.dataset.id)));
     } catch (err) {

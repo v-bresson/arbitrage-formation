@@ -38,7 +38,7 @@
     </div>
     <div class="table-wrap panel" style="padding:0;">
         <table>
-            <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Niveau</th><th>Option</th><th>Formateurs référents</th><th>Actif</th><th></th></tr></thead>
+            <thead><tr><th>Nom</th><th>Club</th><th>Niveau</th><th>Option</th><th>Formateurs référents</th><th>Actif</th><th></th></tr></thead>
             <tbody id="candidats-tbody"></tbody>
         </table>
     </div>
@@ -103,7 +103,6 @@ function renderCandidatsTable(list) {
     msg.textContent = '';
     tbody.innerHTML = list.map(c => `
         <tr>
-            <td>${escapeHtml(c.username)}</td>
             <td>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ')) || '—'}</td>
             <td>${escapeHtml(c.club || '—')}</td>
             <td>${escapeHtml(c.niveau_formation || '—')}</td>
