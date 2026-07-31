@@ -158,11 +158,16 @@ function qa_has_any_admin_access($pdo, $userId, $role) {
     return false;
 }
 
-// Tuile « Espace formateur » sur l'accueil : accès à au moins une section
-// de suivi des candidats (questions/questionnaires/résultats), sans être
-// super_admin (qui a sa propre tuile « Administration », superset).
+// Tuile « Espace formateur » sur l'accueil : affichée si le compte porte
+// explicitement le rôle Formateur (même cumulé avec Super-Admin — l'accès
+// à Administration ne remplace pas l'espace dédié au suivi de candidats),
+// ou sinon s'il a accès à au moins une section de suivi des candidats
+// (questions/questionnaires/résultats) sans être super_admin (qui a déjà
+// sa propre tuile « Administration », superset dans ce cas).
 function qa_has_formateur_access($pdo, $userId, $role) {
-    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return false;
+    $roles = qa_user_role_keys($pdo, $userId, $role);
+    if (in_array('formateur', $roles, true)) return true;
+    if (in_array('super_admin', $roles, true)) return false;
     $perms = qa_effective_permissions($pdo, $userId, $role);
     foreach (['questions', 'quizzes', 'attempts'] as $section) {
         if (($perms[$section] ?? 'none') !== 'none') return true;
