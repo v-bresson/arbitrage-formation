@@ -91,5 +91,74 @@ if ($action === 'fiche') {
     exit;
 }
 
+// Liste complète des candidats visibles (bornée aux candidats assignés pour
+// un Formateur simple) — alimente la tuile "Liste des candidats" de
+// formateur.php (formateur-candidats.php), en lecture seule.
+if ($action === 'list') {
+    $params = [];
+    $sql = "SELECT DISTINCT u.* FROM users u JOIN user_roles ur ON ur.user_id = u.id AND ur.role_key = 'candidat'";
+    if (!$seeAllCandidats) {
+        $sql .= ' JOIN candidat_formateurs cf ON cf.candidat_id = u.id AND cf.formateur_id = ?';
+        $params[] = $userId;
+    }
+    $sql .= ' ORDER BY u.nom, u.prenom, u.username';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    echo json_encode(array_map(function ($row) use ($pdo) {
+        return [
+            'id' => (int)$row['id'],
+            'username' => $row['username'],
+            'nom' => $row['nom'],
+            'prenom' => $row['prenom'],
+            'club' => $row['club'],
+            'niveau_formation' => $row['niveau_formation'] ?? null,
+            'option_pratique' => $row['option_pratique'] ?? null,
+            'formateurs' => qa_user_formateurs($pdo, $row['id']),
+            'actif' => (bool)$row['actif'],
+        ];
+    }, $stmt->fetchAll()));
+    exit;
+}
+
+// Chiffres pour les tuiles de l'Espace formateur : répartition des
+// candidats visibles par niveau de formation, et nombre de tentatives
+// terminées en attente de correction/publication (même logique que
+// l'onglet Résultats de l'administration, voir admin/app.js « à corriger »).
+if ($action === 'dashboard_stats') {
+    $params = [];
+    $sql = "SELECT u.niveau_formation, u.username FROM users u JOIN user_roles ur ON ur.user_id = u.id AND ur.role_key = 'candidat'";
+    if (!$seeAllCandidats) {
+        $sql .= ' JOIN candidat_formateurs cf ON cf.candidat_id = u.id AND cf.formateur_id = ?';
+        $params[] = $userId;
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    $counts = ['Assistant Arbitre' => 0, 'Arbitre Fédéral' => 0, 'Arbitre Duel' => 0];
+    $usernames = [];
+    foreach ($rows as $row) {
+        if (isset($counts[$row['niveau_formation']])) $counts[$row['niveau_formation']]++;
+        $usernames[] = $row['username'];
+    }
+
+    $aCorriger = 0;
+    if ($usernames && qa_has_permission($pdo, $userId, $role, 'attempts', 'read')) {
+        $placeholders = implode(',', array_fill(0, count($usernames), '?'));
+        $stmt2 = $pdo->prepare("SELECT COUNT(*) c FROM tentatives WHERE statut != 'en_cours' AND resultat_publie = 0 AND candidat IN ($placeholders)");
+        $stmt2->execute($usernames);
+        $aCorriger = (int)$stmt2->fetch()['c'];
+    }
+
+    echo json_encode([
+        'candidats_total' => count($rows),
+        'candidats_assistant' => $counts['Assistant Arbitre'],
+        'candidats_federal' => $counts['Arbitre Fédéral'],
+        'candidats_duel' => $counts['Arbitre Duel'],
+        'a_corriger' => $aCorriger,
+    ]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['error' => 'Action inconnue']);

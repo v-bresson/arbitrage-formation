@@ -7,9 +7,6 @@ require_user();
 header('Content-Type: application/json');
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
-if ($action === 'formateur-stats') {
-    require_permission('attempts', 'read');
-}
 
 function qa_count_available($pdo, $categorie) {
     $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND (? = '' OR categorie = ?)");
@@ -537,22 +534,6 @@ if ($action === 'my-stats') {
         'total_tentatives' => (int)($row['total'] ?? 0),
         'reussies' => (int)($row['reussies'] ?? 0),
         'moyenne_pct' => $row['moyenne'] !== null ? round((float)$row['moyenne'], 1) : null,
-        'derniere_tentative' => $row['derniere'],
-    ]);
-    exit;
-}
-
-if ($action === 'formateur-stats') {
-    $stmt = $pdo->query("SELECT COUNT(DISTINCT candidat) candidats,
-        COUNT(*) total,
-        SUM(CASE WHEN reussi = 1 THEN 1 ELSE 0 END) reussies,
-        MAX(completed_at) derniere
-        FROM tentatives WHERE statut IN ('terminee', 'expiree')");
-    $row = $stmt->fetch();
-    echo json_encode([
-        'candidats' => (int)($row['candidats'] ?? 0),
-        'total_tentatives' => (int)($row['total'] ?? 0),
-        'reussies' => (int)($row['reussies'] ?? 0),
         'derniere_tentative' => $row['derniere'],
     ]);
     exit;
