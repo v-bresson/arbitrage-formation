@@ -1402,6 +1402,23 @@ async function deleteUser(id) {
 
 // ================= ROLES =================
 const PERMISSION_LEVEL_LABELS_ROLES = { none: 'aucun accès', read: 'lecture seule', manage: 'gestion complète' };
+// Les 3 droits liés aux QCM (Banque de questions, Questionnaires, Résultats)
+// sont regroupés dans la carte de rôle sous un seul item repliable "QCM
+// Examen" plutôt que 3 lignes séparées — le détail par section reste
+// éditable en dépliant l'item (voir renderRolePermField/roleSectionField).
+const QA_QCM_GROUP_SECTIONS = ['questions', 'quizzes', 'attempts'];
+
+function roleSectionField(section, r) {
+    return `
+                <div class="field role-perm-field" style="margin:0;">
+                    <label>${escapeHtml(permissionSections[section])}</label>
+                    <select class="role-perm-select" data-section="${section}">
+                        <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
+                        <option value="read" ${r.permissions[section] === 'read' ? 'selected' : ''}>Lecture seule</option>
+                        <option value="manage" ${r.permissions[section] === 'manage' ? 'selected' : ''}>Gestion complète</option>
+                    </select>
+                </div>`;
+}
 
 async function loadRoles() {
     try {
@@ -1429,16 +1446,15 @@ qaWatchEffect(() => {
             </div>
             ${isSuperAdmin ? '<p class="modal-hint" style="margin:0;">Accès total à toutes les sections, non modifiable.</p>' : `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
-                ${Object.keys(permissionSections).map(section => `
-                <div class="field role-perm-field" style="margin:0;">
-                    <label>${escapeHtml(permissionSections[section])}</label>
-                    <select class="role-perm-select" data-section="${section}">
-                        <option value="none" ${r.permissions[section] === 'none' ? 'selected' : ''}>Aucun accès</option>
-                        <option value="read" ${r.permissions[section] === 'read' ? 'selected' : ''}>Lecture seule</option>
-                        <option value="manage" ${r.permissions[section] === 'manage' ? 'selected' : ''}>Gestion complète</option>
-                    </select>
-                </div>`).join('')}
+                ${Object.keys(permissionSections).filter(s => !QA_QCM_GROUP_SECTIONS.includes(s)).map(section => roleSectionField(section, r)).join('')}
             </div>
+            ${QA_QCM_GROUP_SECTIONS.some(s => s in permissionSections) ? `
+            <details class="role-perm-group">
+                <summary>QCM Examen</summary>
+                <div class="role-perm-group-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;">
+                    ${QA_QCM_GROUP_SECTIONS.filter(s => s in permissionSections).map(section => roleSectionField(section, r)).join('')}
+                </div>
+            </details>` : ''}
             <div class="row-actions" style="margin-top:8px;">
                 <button type="button" class="secondary save-role-btn" data-id="${escapeHtml(r.role_key)}">Enregistrer</button>
                 ${!r.is_system ? `<button type="button" class="danger delete-role-btn" data-id="${escapeHtml(r.role_key)}">Supprimer</button>` : ''}

@@ -366,6 +366,34 @@ body.has-fixed-header { padding-top: 0; }
     align-items: flex-end;
 }
 
+.role-perm-group {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 4px;
+}
+
+.role-perm-group summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-primary);
+    list-style: none;
+}
+
+.role-perm-group summary::-webkit-details-marker { display: none; }
+
+.role-perm-group summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 6px;
+    color: var(--accent);
+    transition: transform 0.15s ease;
+}
+
+.role-perm-group[open] summary::before { transform: rotate(90deg); }
+
+.role-perm-group-body { margin-top: 10px; }
+
 .pill {
     background: rgba(91, 141, 239, 0.12);
     color: var(--accent);
