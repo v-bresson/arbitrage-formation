@@ -36,7 +36,7 @@
         </div>
         <div class="field"><label>Club</label><input type="text" id="acc-club"></div>
 
-        <h2 style="margin:12px 0 0;">Informations ajoutées par l'administrateur</h2>
+        <h2 style="margin:12px 0 0;">Ma formation en cours</h2>
         <p class="modal-hint" style="margin:0;">Ces informations sont renseignées par l'administrateur et ne sont pas modifiables ici.</p>
         <div class="field-row">
             <div class="field"><label>Formateur référent</label><input type="text" id="acc-formateur-referent" disabled></div>

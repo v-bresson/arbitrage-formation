@@ -198,12 +198,20 @@ function bind() {
     document.getElementById('tiles-manage-toggle-row').classList.toggle('hidden', !canManageTiles());
     document.getElementById('tiles-manage-toggle').checked = vm.manageMode;
 
-    renderStats();
+    const inManageMode = vm.manageMode && canManageTiles();
+
+    // En mode paramétrage, seule l'organisation des tuiles est affichée
+    // (profil et statistiques masqués) pour ne pas mélanger la réorganisation
+    // des tuiles avec celle, distincte, des cartes de statistiques.
+    document.getElementById('profile-card').classList.toggle('hidden', inManageMode);
+    document.getElementById('stats-grid').classList.toggle('hidden', inManageMode);
+
+    if (!inManageMode) renderStats();
 
     const grid = document.getElementById('tiles-grid');
     const msg = document.getElementById('tiles-msg');
 
-    if (vm.manageMode && canManageTiles()) {
+    if (inManageMode) {
         msg.textContent = '';
         renderManageTiles(grid);
         return;
