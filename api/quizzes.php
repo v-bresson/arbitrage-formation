@@ -12,29 +12,50 @@ $qaSection = $action === 'attempts' ? 'attempts' : 'quizzes';
 $qaMinLevel = in_array($action, ['save', 'delete'], true) ? 'manage' : 'read';
 require_permission($qaSection, $qaMinLevel);
 
-function qa_quiz_pool_where($type) {
-    // Un questionnaire d'entraînement ne pioche jamais parmi les questions
-    // réservées à l'examen. Un questionnaire d'examen pioche dans toute la banque.
-    return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
-}
-
-function qa_count_available($pdo, $poolWhere, $categorie) {
-    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
+function qa_count_available($pdo, $categorie) {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND (? = '' OR categorie = ?)");
     $countStmt->execute([$categorie ?? '', $categorie ?? '']);
     return (int)$countStmt->fetch()['c'];
 }
 
+// Détail (existence + statut actif) des questions d'une sélection manuelle,
+// dans l'ordre choisi à la création du QCM Examen.
+function qa_manual_questions_detail($pdo, $ids) {
+    if (empty($ids)) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT id, categorie, enonce, actif FROM questions WHERE id IN ($placeholders)");
+    $stmt->execute($ids);
+    $byId = [];
+    foreach ($stmt->fetchAll() as $r) $byId[(int)$r['id']] = $r;
+    $detail = [];
+    foreach ($ids as $id) {
+        $q = $byId[(int)$id] ?? null;
+        $detail[] = [
+            'id' => (int)$id,
+            'categorie' => $q['categorie'] ?? null,
+            'enonce' => $q['enonce'] ?? null,
+            'disponible' => $q !== null && (bool)$q['actif'],
+        ];
+    }
+    return $detail;
+}
+
 function qa_quiz_row_out($row, $pdo) {
-    $poolWhere = qa_quiz_pool_where($row['type']);
     $repartition = null;
+    $questionsManuelles = null;
     $suffisant = true;
 
-    if (!empty($row['repartition'])) {
+    if (($row['selection_mode'] ?? 'auto') === 'manuel') {
+        $ids = json_decode($row['questions_manuelles'] ?? '[]', true) ?: [];
+        $questionsManuelles = qa_manual_questions_detail($pdo, $ids);
+        $available = count(array_filter($questionsManuelles, fn($q) => $q['disponible']));
+        $suffisant = $available === count($ids) && count($ids) > 0;
+    } elseif (!empty($row['repartition'])) {
         $parts = json_decode($row['repartition'], true) ?: [];
         $repartition = [];
         $available = 0;
         foreach ($parts as $part) {
-            $dispo = qa_count_available($pdo, $poolWhere, $part['categorie']);
+            $dispo = qa_count_available($pdo, $part['categorie']);
             $available += min($dispo, $part['nombre_questions']);
             if ($dispo < $part['nombre_questions']) $suffisant = false;
             $repartition[] = [
@@ -44,7 +65,7 @@ function qa_quiz_row_out($row, $pdo) {
             ];
         }
     } else {
-        $available = qa_count_available($pdo, $poolWhere, $row['categorie_filtre'] ?? '');
+        $available = qa_count_available($pdo, $row['categorie_filtre'] ?? '');
         $suffisant = $available >= (int)$row['nombre_questions'];
     }
 
@@ -52,10 +73,12 @@ function qa_quiz_row_out($row, $pdo) {
         'id' => (int)$row['id'],
         'nom' => $row['nom'],
         'description' => $row['description'],
-        'type' => $row['type'],
+        'type' => 'examen',
+        'selection_mode' => $row['selection_mode'] ?? 'auto',
         'categorie_filtre' => $row['categorie_filtre'],
         'nombre_questions' => (int)$row['nombre_questions'],
         'repartition' => $repartition,
+        'questions_manuelles' => $questionsManuelles,
         'note_max' => (float)$row['note_max'],
         'seuil_reussite' => (float)$row['seuil_reussite'],
         'duree_minutes' => $row['duree_minutes'] !== null ? (int)$row['duree_minutes'] : null,
@@ -82,7 +105,7 @@ if ($action === 'save') {
     $id = $body['id'] ?? null;
     $nom = trim($body['nom'] ?? '');
     $description = trim($body['description'] ?? '');
-    $type = in_array($body['type'] ?? '', ['entrainement', 'examen'], true) ? $body['type'] : 'entrainement';
+    $selectionMode = ($body['selection_mode'] ?? '') === 'manuel' ? 'manuel' : 'auto';
     $categorieFiltre = trim($body['categorie_filtre'] ?? '');
     $nombreQuestions = max(1, (int)($body['nombre_questions'] ?? 10));
     $noteMax = max(1, (float)($body['note_max'] ?? 20));
@@ -102,6 +125,20 @@ if ($action === 'save') {
         $categorieFiltre = '';
         $nombreQuestions = array_sum(array_column($repartition, 'nombre_questions'));
     }
+
+    // Sélection manuelle : liste d'id de questions choisies une à une dans la
+    // banque. Remplace toute logique de tirage aléatoire (repartition/filtre
+    // ignorés) et fixe nombre_questions au nombre de questions choisies.
+    $questionsManuellesInput = is_array($body['questions_manuelles'] ?? null) ? $body['questions_manuelles'] : [];
+    $questionsManuelles = array_values(array_unique(array_map('intval', $questionsManuellesInput)));
+    if ($selectionMode === 'manuel') {
+        $repartition = [];
+        $categorieFiltre = '';
+        $nombreQuestions = count($questionsManuelles);
+    } else {
+        $questionsManuelles = [];
+    }
+
     $seuil = max(0, (float)($body['seuil_reussite'] ?? 10));
     $dureeMinutes = isset($body['duree_minutes']) && $body['duree_minutes'] !== '' ? max(1, (int)$body['duree_minutes']) : null;
     $ouvertureDebut = trim($body['ouverture_debut'] ?? '') ?: null;
@@ -112,7 +149,12 @@ if ($action === 'save') {
 
     if ($nom === '') {
         http_response_code(422);
-        echo json_encode(['success' => false, 'message' => 'Le nom du questionnaire est requis']);
+        echo json_encode(['success' => false, 'message' => 'Le nom du QCM Examen est requis']);
+        exit;
+    }
+    if ($selectionMode === 'manuel' && count($questionsManuelles) < 1) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Sélectionnez au moins une question dans la banque']);
         exit;
     }
     if ($seuil > $noteMax) {
@@ -127,13 +169,14 @@ if ($action === 'save') {
     }
 
     $repartitionJson = !empty($repartition) ? json_encode($repartition) : null;
+    $questionsManuellesJson = !empty($questionsManuelles) ? json_encode($questionsManuelles) : null;
 
     if ($id) {
-        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, type=?, categorie_filtre=?, nombre_questions=?, repartition=?, note_max=?, seuil_reussite=?, duree_minutes=?, ouverture_debut=?, ouverture_fin=?, tentatives_max=?, afficher_score=?, actif=? WHERE id=?');
-        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $repartitionJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif, $id]);
+        $stmt = $pdo->prepare('UPDATE quizzes SET nom=?, description=?, selection_mode=?, categorie_filtre=?, nombre_questions=?, repartition=?, questions_manuelles=?, note_max=?, seuil_reussite=?, duree_minutes=?, ouverture_debut=?, ouverture_fin=?, tentatives_max=?, afficher_score=?, actif=? WHERE id=?');
+        $stmt->execute([$nom, $description, $selectionMode, $categorieFiltre, $nombreQuestions, $repartitionJson, $questionsManuellesJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif, $id]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, type, categorie_filtre, nombre_questions, repartition, note_max, seuil_reussite, duree_minutes, ouverture_debut, ouverture_fin, tentatives_max, afficher_score, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$nom, $description, $type, $categorieFiltre, $nombreQuestions, $repartitionJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif]);
+        $stmt = $pdo->prepare('INSERT INTO quizzes (nom, description, type, selection_mode, categorie_filtre, nombre_questions, repartition, questions_manuelles, note_max, seuil_reussite, duree_minutes, ouverture_debut, ouverture_fin, tentatives_max, afficher_score, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$nom, $description, 'examen', $selectionMode, $categorieFiltre, $nombreQuestions, $repartitionJson, $questionsManuellesJson, $noteMax, $seuil, $dureeMinutes, $ouvertureDebut, $ouvertureFin, $tentativesMax, $afficherScore, $actif]);
         $id = $pdo->lastInsertId();
     }
 

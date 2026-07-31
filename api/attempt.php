@@ -11,28 +11,33 @@ if ($action === 'formateur-stats') {
     require_permission('attempts', 'read');
 }
 
-function qa_pool_where($type) {
-    return $type === 'entrainement' ? 'AND examen_uniquement = 0' : '';
-}
-
-function qa_count_available($pdo, $poolWhere, $categorie) {
-    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?)");
+function qa_count_available($pdo, $categorie) {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND (? = '' OR categorie = ?)");
     $countStmt->execute([$categorie ?? '', $categorie ?? '']);
     return (int)$countStmt->fetch()['c'];
 }
 
-// Calcule la disponibilité et le nombre total de questions d'un questionnaire,
-// en tenant compte de la répartition par thématique si elle est définie.
-// Renvoie [nombreQuestionsTotal, disponible, suffisant].
+// Calcule la disponibilité et le nombre total de questions d'un QCM Examen,
+// selon sa méthode de sélection (manuelle, répartition par thématique, ou
+// tirage global). Renvoie [nombreQuestionsTotal, disponible, suffisant].
 function qa_quiz_availability($pdo, $quiz) {
-    $poolWhere = qa_pool_where($quiz['type']);
+    if (($quiz['selection_mode'] ?? 'auto') === 'manuel') {
+        $ids = json_decode($quiz['questions_manuelles'] ?? '[]', true) ?: [];
+        if (empty($ids)) return [0, 0, false];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND id IN ($placeholders)");
+        $stmt->execute($ids);
+        $available = (int)$stmt->fetch()['c'];
+        return [count($ids), $available, $available === count($ids)];
+    }
+
     if (!empty($quiz['repartition'])) {
         $parts = json_decode($quiz['repartition'], true) ?: [];
         $total = 0;
         $available = 0;
         $suffisant = true;
         foreach ($parts as $part) {
-            $dispo = qa_count_available($pdo, $poolWhere, $part['categorie']);
+            $dispo = qa_count_available($pdo, $part['categorie']);
             $total += $part['nombre_questions'];
             $available += min($dispo, $part['nombre_questions']);
             if ($dispo < $part['nombre_questions']) $suffisant = false;
@@ -40,22 +45,31 @@ function qa_quiz_availability($pdo, $quiz) {
         return [$total, $available, $suffisant];
     }
 
-    $available = qa_count_available($pdo, $poolWhere, $quiz['categorie_filtre'] ?? '');
+    $available = qa_count_available($pdo, $quiz['categorie_filtre'] ?? '');
     return [(int)$quiz['nombre_questions'], $available, $available >= (int)$quiz['nombre_questions']];
 }
 
-// Pioche les questions d'un questionnaire, par thématique si une répartition
-// est définie (chaque thématique tire son propre nombre de questions), sinon
-// selon categorie_filtre/nombre_questions. Les questions sont mélangées pour
-// ne pas grouper les thématiques dans l'ordre d'affichage.
+// Pioche les questions d'un QCM Examen : liste fixe (sélection manuelle,
+// mélangée pour ne pas afficher toujours dans le même ordre), par thématique
+// si une répartition est définie (chaque thématique tire son propre nombre
+// de questions), sinon selon categorie_filtre/nombre_questions.
 function qa_draw_questions($pdo, $quiz) {
-    $poolWhere = qa_pool_where($quiz['type']);
+    if (($quiz['selection_mode'] ?? 'auto') === 'manuel') {
+        $ids = json_decode($quiz['questions_manuelles'] ?? '[]', true) ?: [];
+        if (empty($ids)) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 AND id IN ($placeholders)");
+        $stmt->execute($ids);
+        $rows = $stmt->fetchAll();
+        shuffle($rows);
+        return $rows;
+    }
 
     if (!empty($quiz['repartition'])) {
         $parts = json_decode($quiz['repartition'], true) ?: [];
         $drawn = [];
         foreach ($parts as $part) {
-            $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND categorie = ? ORDER BY RAND() LIMIT ?");
+            $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 AND categorie = ? ORDER BY RAND() LIMIT ?");
             $qStmt->bindValue(1, $part['categorie']);
             $qStmt->bindValue(2, (int)$part['nombre_questions'], PDO::PARAM_INT);
             $qStmt->execute();
@@ -65,7 +79,7 @@ function qa_draw_questions($pdo, $quiz) {
         return $drawn;
     }
 
-    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 $poolWhere AND (? = '' OR categorie = ?) ORDER BY RAND() LIMIT ?");
+    $qStmt = $pdo->prepare("SELECT * FROM questions WHERE actif=1 AND (? = '' OR categorie = ?) ORDER BY RAND() LIMIT ?");
     $qStmt->bindValue(1, $quiz['categorie_filtre'] ?? '');
     $qStmt->bindValue(2, $quiz['categorie_filtre'] ?? '');
     $qStmt->bindValue(3, (int)$quiz['nombre_questions'], PDO::PARAM_INT);
@@ -100,6 +114,8 @@ function qa_question_public($q) {
             'b' => $q['options']['b'] ?? null,
             'c' => $q['options']['c'] ?? null,
             'd' => $q['options']['d'] ?? null,
+            'e' => $q['options']['e'] ?? null,
+            'f' => $q['options']['f'] ?? null,
         ]);
     }
     return $out;
@@ -266,7 +282,7 @@ if ($action === 'start') {
         'type' => $q['type'],
         'enonce' => $q['enonce'],
         'image' => $q['image'],
-        'options' => ['a' => $q['option_a'], 'b' => $q['option_b'], 'c' => $q['option_c'], 'd' => $q['option_d']],
+        'options' => ['a' => $q['option_a'], 'b' => $q['option_b'], 'c' => $q['option_c'], 'd' => $q['option_d'], 'e' => $q['option_e'], 'f' => $q['option_f']],
         'bonne_reponse' => $q['bonne_reponse'],
         'points' => (int)$q['points'],
     ], $drawn);

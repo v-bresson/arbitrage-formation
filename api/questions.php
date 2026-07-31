@@ -13,6 +13,7 @@ $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 const QA_QUESTION_TYPES = ['qcm_unique', 'qcm_multiple', 'ouverte'];
+const QA_OPTION_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 function qa_question_row_out($row) {
     return [
@@ -26,18 +27,21 @@ function qa_question_row_out($row) {
             'b' => $row['option_b'],
             'c' => $row['option_c'],
             'd' => $row['option_d'],
+            'e' => $row['option_e'] ?? null,
+            'f' => $row['option_f'] ?? null,
         ],
         'bonne_reponse' => $row['bonne_reponse'],
         'points' => (int)$row['points'],
-        'examen_uniquement' => (bool)$row['examen_uniquement'],
         'actif' => (bool)$row['actif'],
         'created_at' => $row['created_at'],
     ];
 }
 
 // Valide et normalise les champs propres à chaque type de question.
-// Lève une RuntimeException avec un message utilisateur en cas d'erreur.
-function qa_validate_question($type, $enonce, &$a, &$b, &$c, &$d, &$bonne) {
+// $options est un tableau associatif a..f (passé par référence, réinitialisé
+// à null pour une question ouverte). Lève une RuntimeException avec un
+// message utilisateur en cas d'erreur.
+function qa_validate_question($type, $enonce, &$options, &$bonne) {
     if ($enonce === '') {
         throw new RuntimeException("L'énoncé est requis");
     }
@@ -46,23 +50,21 @@ function qa_validate_question($type, $enonce, &$a, &$b, &$c, &$d, &$bonne) {
     }
 
     if ($type === 'ouverte') {
-        $a = $b = $c = $d = null;
+        foreach (QA_OPTION_LETTERS as $l) $options[$l] = null;
         $bonne = null;
         return;
     }
 
-    if ($a === '' || $b === '') {
+    if (($options['a'] ?? '') === '' || ($options['b'] ?? '') === '') {
         throw new RuntimeException("Les réponses A et B sont requises pour un QCM");
     }
 
-    $optionsText = ['a' => $a, 'b' => $b, 'c' => $c, 'd' => $d];
-
     if ($type === 'qcm_unique') {
         $bonne = strtolower(trim($bonne));
-        if (!in_array($bonne, ['a', 'b', 'c', 'd'], true)) {
-            throw new RuntimeException('La bonne réponse doit être a, b, c ou d');
+        if (!in_array($bonne, QA_OPTION_LETTERS, true)) {
+            throw new RuntimeException('La bonne réponse doit être une lettre entre A et F');
         }
-        if (($optionsText[$bonne] ?? '') === '') {
+        if (($options[$bonne] ?? '') === '') {
             throw new RuntimeException("La réponse choisie comme correcte n'a pas de texte");
         }
         return;
@@ -75,7 +77,7 @@ function qa_validate_question($type, $enonce, &$a, &$b, &$c, &$d, &$bonne) {
         throw new RuntimeException('Sélectionnez au moins une bonne réponse');
     }
     foreach ($letters as $l) {
-        if (!in_array($l, ['a', 'b', 'c', 'd'], true) || ($optionsText[$l] ?? '') === '') {
+        if (!in_array($l, QA_OPTION_LETTERS, true) || ($options[$l] ?? '') === '') {
             throw new RuntimeException("Une des bonnes réponses sélectionnées n'a pas de texte");
         }
     }
@@ -103,18 +105,15 @@ if ($action === 'save') {
     $categorie = trim($_POST['categorie'] ?? '') ?: 'Général';
     $type = $_POST['type'] ?? 'qcm_unique';
     $enonce = trim($_POST['enonce'] ?? '');
-    $a = trim($_POST['option_a'] ?? '');
-    $b = trim($_POST['option_b'] ?? '');
-    $c = trim($_POST['option_c'] ?? '');
-    $d = trim($_POST['option_d'] ?? '');
+    $options = [];
+    foreach (QA_OPTION_LETTERS as $l) $options[$l] = trim($_POST['option_' . $l] ?? '');
     $bonne = $_POST['bonne_reponse'] ?? '';
     $points = max(1, (int)($_POST['points'] ?? 1));
-    $examenUniquement = !empty($_POST['examen_uniquement']) ? 1 : 0;
     $actif = !empty($_POST['actif']) ? 1 : 0;
     $removeImage = !empty($_POST['remove_image']);
 
     try {
-        qa_validate_question($type, $enonce, $a, $b, $c, $d, $bonne);
+        qa_validate_question($type, $enonce, $options, $bonne);
     } catch (RuntimeException $e) {
         http_response_code(422);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -145,12 +144,14 @@ if ($action === 'save') {
         exit;
     }
 
+    $optionValues = array_map(fn($l) => $options[$l] !== '' ? $options[$l] : null, QA_OPTION_LETTERS);
+
     if ($id) {
-        $stmt = $pdo->prepare('UPDATE questions SET categorie=?, type=?, enonce=?, image=?, option_a=?, option_b=?, option_c=?, option_d=?, bonne_reponse=?, points=?, examen_uniquement=?, actif=? WHERE id=?');
-        $stmt->execute([$categorie, $type, $enonce, $image, $a ?: null, $b ?: null, $c ?: null, $d ?: null, $bonne, $points, $examenUniquement, $actif, $id]);
+        $stmt = $pdo->prepare('UPDATE questions SET categorie=?, type=?, enonce=?, image=?, option_a=?, option_b=?, option_c=?, option_d=?, option_e=?, option_f=?, bonne_reponse=?, points=?, actif=? WHERE id=?');
+        $stmt->execute([$categorie, $type, $enonce, $image, ...$optionValues, $bonne, $points, $actif, $id]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO questions (categorie, type, enonce, image, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$categorie, $type, $enonce, $image, $a ?: null, $b ?: null, $c ?: null, $d ?: null, $bonne, $points, $examenUniquement, $actif]);
+        $stmt = $pdo->prepare('INSERT INTO questions (categorie, type, enonce, image, option_a, option_b, option_c, option_d, option_e, option_f, bonne_reponse, points, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $stmt->execute([$categorie, $type, $enonce, $image, ...$optionValues, $bonne, $points, $actif]);
         $id = $pdo->lastInsertId();
     }
 
@@ -208,10 +209,10 @@ if ($action === 'import') {
         }
 
         // En-tête attendu : categorie, type, enonce, option_a, option_b, option_c,
-        // option_d, bonne_reponse, points, examen_uniquement
+        // option_d, option_e, option_f, bonne_reponse, points
         // type ∈ qcm_unique | qcm_multiple | ouverte (défaut qcm_unique)
-        // bonne_reponse : une lettre (qcm_unique) ou une liste séparée par des
-        // virgules, ex. "a,c" (qcm_multiple). Ignoré pour les questions ouvertes.
+        // bonne_reponse : une lettre a-f (qcm_unique) ou une liste séparée par
+        // des virgules, ex. "a,c" (qcm_multiple). Ignoré pour les questions ouvertes.
         $header = array_map(fn($h) => strtolower(trim((string)$h)), array_shift($rows));
         $colIndex = array_flip($header);
 
@@ -225,7 +226,7 @@ if ($action === 'import') {
 
         $inserted = 0;
         $errors = [];
-        $stmt = $pdo->prepare('INSERT INTO questions (categorie, type, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement, actif) VALUES (?,?,?,?,?,?,?,?,?,?,1)');
+        $stmt = $pdo->prepare('INSERT INTO questions (categorie, type, enonce, option_a, option_b, option_c, option_d, option_e, option_f, bonne_reponse, points, actif) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)');
 
         $pdo->beginTransaction();
         foreach ($rows as $i => $row) {
@@ -234,23 +235,21 @@ if ($action === 'import') {
             $lineNum = $i + 2;
             $enonce = $get($row, 'enonce');
             $type = strtolower($get($row, 'type')) ?: 'qcm_unique';
-            $a = $get($row, 'option_a');
-            $b = $get($row, 'option_b');
-            $c = $get($row, 'option_c');
-            $d = $get($row, 'option_d');
+            $options = [];
+            foreach (QA_OPTION_LETTERS as $l) $options[$l] = $get($row, 'option_' . $l);
             $categorie = $get($row, 'categorie') ?: 'Général';
             $bonne = $get($row, 'bonne_reponse');
             $points = (int)($get($row, 'points') ?: 1);
-            $examenUniquement = in_array(strtolower($get($row, 'examen_uniquement')), ['1', 'oui', 'true', 'vrai'], true) ? 1 : 0;
 
             try {
-                qa_validate_question($type, $enonce, $a, $b, $c, $d, $bonne);
+                qa_validate_question($type, $enonce, $options, $bonne);
             } catch (RuntimeException $e) {
                 $errors[] = "Ligne $lineNum : " . $e->getMessage();
                 continue;
             }
 
-            $stmt->execute([$categorie, $type, $enonce, $a, $b, $c, $d, $bonne, max(1, $points), $examenUniquement]);
+            $optionValues = array_map(fn($l) => $options[$l] !== '' ? $options[$l] : null, QA_OPTION_LETTERS);
+            $stmt->execute([$categorie, $type, $enonce, ...$optionValues, $bonne, max(1, $points)]);
             $inserted++;
         }
         $pdo->commit();

@@ -37,10 +37,10 @@
             <button type="button" class="sidebar-link active" data-tab="overview">Dashboard</button>
 
             <div class="sidebar-group open">
-                <button type="button" class="sidebar-group-toggle">Questionnaires</button>
+                <button type="button" class="sidebar-group-toggle">QCM Examen</button>
                 <div class="sidebar-submenu">
                     <button type="button" class="sidebar-link" data-tab="questions">Banque de questions</button>
-                    <button type="button" class="sidebar-link" data-tab="quizzes">Questionnaires</button>
+                    <button type="button" class="sidebar-link" data-tab="quizzes">QCM Examen</button>
                     <button type="button" class="sidebar-link" data-tab="attempts">Résultats</button>
                 </div>
             </div>
@@ -64,7 +64,7 @@
                 </div>
                 <div class="grid">
                     <div class="card"><p style="color:var(--text-secondary);">Questions</p><h2 id="overview-questions-count" style="font-size:2rem;">—</h2></div>
-                    <div class="card"><p style="color:var(--text-secondary);">Questionnaires</p><h2 id="overview-quizzes-count" style="font-size:2rem;">—</h2></div>
+                    <div class="card"><p style="color:var(--text-secondary);">QCM Examen</p><h2 id="overview-quizzes-count" style="font-size:2rem;">—</h2></div>
                     <div class="card"><p style="color:var(--text-secondary);">Tentatives enregistrées</p><h2 id="overview-attempts-count" style="font-size:2rem;">—</h2></div>
                     <div class="card" id="overview-users-card"><p style="color:var(--text-secondary);">Comptes utilisateurs</p><h2 id="overview-users-count" style="font-size:2rem;">—</h2></div>
                 </div>
@@ -77,7 +77,7 @@
                 </div>
             </div>
 
-            <!-- ---------- QUESTIONNAIRE > BANQUE DE QUESTIONS ---------- -->
+            <!-- ---------- QCM EXAMEN > BANQUE DE QUESTIONS ---------- -->
             <div id="tab-questions" class="tab-panel hidden">
                 <h2 style="margin-bottom:16px;">Banque de questions</h2>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
@@ -89,29 +89,29 @@
                 </div>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
-                        <thead><tr><th>Catégorie</th><th>Type</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Examen</th><th>Actif</th><th></th></tr></thead>
+                        <thead><tr><th>Catégorie</th><th>Type</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Actif</th><th></th></tr></thead>
                         <tbody id="questions-tbody"></tbody>
                     </table>
                 </div>
                 <p class="msg" id="questions-msg"></p>
             </div>
 
-            <!-- ---------- QUESTIONNAIRE > QUESTIONNAIRES ---------- -->
+            <!-- ---------- QCM EXAMEN ---------- -->
             <div id="tab-quizzes" class="tab-panel hidden">
-                <h2 style="margin-bottom:16px;">Questionnaires</h2>
+                <h2 style="margin-bottom:16px;">QCM Examen</h2>
                 <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-                    <button type="button" id="new-quiz-btn">+ Nouveau questionnaire</button>
+                    <button type="button" id="new-quiz-btn">+ Nouveau QCM Examen</button>
                 </div>
                 <div class="grid" id="quizzes-grid"></div>
                 <p class="msg" id="quizzes-msg"></p>
             </div>
 
-            <!-- ---------- QUESTIONNAIRE > RESULTATS ---------- -->
+            <!-- ---------- QCM EXAMEN > RESULTATS ---------- -->
             <div id="tab-attempts" class="tab-panel hidden">
                 <h2 style="margin-bottom:16px;">Résultats</h2>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
-                        <thead><tr><th>Questionnaire</th><th>Type</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Fin</th></tr></thead>
+                        <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Fin</th></tr></thead>
                         <tbody id="attempts-tbody"></tbody>
                     </table>
                 </div>
@@ -266,32 +266,18 @@
                 </div>
             </div>
             <div id="q-options-fields">
-                <div class="field-row">
-                    <div class="field"><label>Réponse A</label><input type="text" id="q-a"></div>
-                    <div class="field"><label>Réponse B</label><input type="text" id="q-b"></div>
-                </div>
-                <div class="field-row">
-                    <div class="field"><label>Réponse C (optionnelle)</label><input type="text" id="q-c"></div>
-                    <div class="field"><label>Réponse D (optionnelle)</label><input type="text" id="q-d"></div>
-                </div>
-                <div class="field" id="q-bonne-unique-field">
+                <div id="q-options-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+                <button type="button" class="secondary" id="q-add-option-btn" style="align-self:flex-start;margin-top:8px;">+ Ajouter une réponse</button>
+                <div class="field" id="q-bonne-unique-field" style="margin-top:12px;">
                     <label>Bonne réponse</label>
-                    <select id="q-bonne">
-                        <option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option>
-                    </select>
+                    <select id="q-bonne"></select>
                 </div>
-                <div class="field" id="q-bonne-multiple-field">
+                <div class="field" id="q-bonne-multiple-field" style="margin-top:12px;">
                     <label>Bonnes réponses (une ou plusieurs)</label>
-                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="q-bonne-multi" value="a" style="width:auto;"> A</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="q-bonne-multi" value="b" style="width:auto;"> B</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="q-bonne-multi" value="c" style="width:auto;"> C</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="q-bonne-multi" value="d" style="width:auto;"> D</label>
-                    </div>
+                    <div id="q-bonne-multi-list" style="display:flex;gap:16px;flex-wrap:wrap;"></div>
                 </div>
             </div>
             <p class="msg" id="q-ouverte-hint" style="display:none;">Les questions ouvertes ne sont pas notées automatiquement : les réponses des candidats seront consultables dans l'onglet Résultats pour correction manuelle.</p>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="q-examen" style="width:auto;"> Réservée à l'examen (exclue des questionnaires d'entraînement)</label>
             <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="q-actif" style="width:auto;" checked> Question active</label>
             <div class="modal-actions">
                 <button type="button" class="secondary" id="question-cancel-btn">Annuler</button>
@@ -307,10 +293,10 @@
     <div class="modal">
         <h2>Importer des questions</h2>
         <p class="modal-hint">
-            Fichier .csv ou .xlsx avec les colonnes : <code>categorie, type, enonce, option_a, option_b, option_c, option_d, bonne_reponse, points, examen_uniquement</code>.
-            <code>type</code> vaut <code>qcm_unique</code> (défaut), <code>qcm_multiple</code> ou <code>ouverte</code>.
-            <code>bonne_reponse</code> est une lettre (a-d) pour un QCM à réponse unique, ou une liste séparée par des virgules (ex. <code>a,c</code>) pour un QCM à réponses multiples ; ignoré pour les questions ouvertes.
-            <code>examen_uniquement</code> vaut 1/oui pour réserver la question à l'examen. Les questions importées sont actives par défaut.
+            Fichier .csv ou .xlsx avec les colonnes : <code>categorie, type, enonce, option_a, option_b, option_c, option_d, option_e, option_f, bonne_reponse, points</code>.
+            <code>type</code> vaut <code>qcm_unique</code> (défaut), <code>qcm_multiple</code> ou <code>ouverte</code>. <code>option_e</code> et <code>option_f</code> sont facultatives (2 à 6 réponses).
+            <code>bonne_reponse</code> est une lettre (a-f) pour un QCM à réponse unique, ou une liste séparée par des virgules (ex. <code>a,c</code>) pour un QCM à réponses multiples ; ignoré pour les questions ouvertes.
+            Les questions importées sont actives par défaut.
         </p>
         <form id="import-form" style="display:flex;flex-direction:column;gap:12px;">
             <input type="file" id="import-file-input" accept=".csv,.xlsx" required>
@@ -323,35 +309,45 @@
     </div>
 </div>
 
-<!-- ================= MODALE QUESTIONNAIRE ================= -->
+<!-- ================= MODALE QCM EXAMEN ================= -->
 <div id="quiz-modal-overlay" class="modal-overlay hidden">
-    <div class="modal">
-        <h2 id="quiz-modal-title">Nouveau questionnaire</h2>
+    <div class="modal" style="max-width:720px;">
+        <h2 id="quiz-modal-title">Nouveau QCM Examen</h2>
         <form id="quiz-form" style="display:flex;flex-direction:column;gap:12px;">
             <input type="hidden" id="qz-id">
             <div class="field"><label>Nom</label><input type="text" id="qz-nom" required></div>
             <div class="field"><label>Description</label><textarea id="qz-desc" rows="2"></textarea></div>
+
             <div class="field">
-                <label>Type de questionnaire</label>
-                <select id="qz-type">
-                    <option value="entrainement">Entraînement (n'utilise jamais les questions réservées à l'examen)</option>
-                    <option value="examen">Examen (peut utiliser toute la banque de questions)</option>
+                <label>Méthode de sélection des questions</label>
+                <select id="qz-selection-mode">
+                    <option value="auto">Automatique (tirage dans la banque de questions)</option>
+                    <option value="manuel">Manuelle (choisir les questions une à une dans la banque)</option>
                 </select>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-repartition-toggle" style="width:auto;"> Répartir le nombre de questions par thématique</label>
 
-            <div id="qz-simple-fields" class="field-row">
-                <div class="field"><label>Catégorie (laisser vide = toutes les catégories)</label><input type="text" id="qz-categorie" list="qz-categories-datalist"></div>
-                <div class="field"><label>Nombre de questions</label><input type="number" id="qz-nombre" min="1" value="10" required></div>
+            <div id="qz-auto-fields" style="display:flex;flex-direction:column;gap:12px;">
+                <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-repartition-toggle" style="width:auto;"> Répartir le nombre de questions par thématique</label>
+
+                <div id="qz-simple-fields" class="field-row">
+                    <div class="field"><label>Catégorie (laisser vide = toutes les catégories)</label><input type="text" id="qz-categorie" list="qz-categories-datalist"></div>
+                    <div class="field"><label>Nombre de questions</label><input type="number" id="qz-nombre" min="1" value="10" required></div>
+                </div>
+
+                <div id="qz-repartition-fields" class="hidden" style="display:flex;flex-direction:column;gap:10px;">
+                    <label>Thématiques et nombre de questions</label>
+                    <div id="qz-repartition-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+                    <button type="button" class="secondary" id="qz-add-repartition-btn" style="align-self:flex-start;">+ Ajouter une thématique</button>
+                    <p class="msg" id="qz-repartition-total" style="color:var(--text-secondary);"></p>
+                </div>
+                <datalist id="qz-categories-datalist"></datalist>
             </div>
 
-            <div id="qz-repartition-fields" class="hidden" style="display:flex;flex-direction:column;gap:10px;">
-                <label>Thématiques et nombre de questions</label>
-                <div id="qz-repartition-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
-                <button type="button" class="secondary" id="qz-add-repartition-btn" style="align-self:flex-start;">+ Ajouter une thématique</button>
-                <p class="msg" id="qz-repartition-total" style="color:var(--text-secondary);"></p>
+            <div id="qz-manuel-fields" class="hidden" style="display:flex;flex-direction:column;gap:10px;">
+                <label>Questions sélectionnées (<span id="qz-manuel-count">0</span>)</label>
+                <input type="text" id="qz-manuel-search" placeholder="Rechercher dans la banque (énoncé, catégorie)...">
+                <div id="qz-manuel-list" class="table-wrap panel" style="padding:0;max-height:280px;overflow-y:auto;"></div>
             </div>
-            <datalist id="qz-categories-datalist"></datalist>
 
             <div class="field-row">
                 <div class="field"><label>Note maximale</label><input type="number" id="qz-notemax" min="1" value="20" required></div>
@@ -365,8 +361,8 @@
                 <div class="field"><label>Ouverture le</label><input type="datetime-local" id="qz-ouverture-debut"></div>
                 <div class="field"><label>Fermeture le</label><input type="datetime-local" id="qz-ouverture-fin"></div>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-afficher-score" style="width:auto;" checked> Afficher le score au candidat à la fin du questionnaire</label>
-            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-actif" style="width:auto;" checked> Questionnaire actif (visible côté candidat)</label>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-afficher-score" style="width:auto;" checked> Afficher le score au candidat à la fin du QCM Examen</label>
+            <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="qz-actif" style="width:auto;" checked> QCM Examen actif (visible côté candidat)</label>
             <div class="modal-actions">
                 <button type="button" class="secondary" id="quiz-cancel-btn">Annuler</button>
                 <button type="submit" id="quiz-save-btn">Enregistrer</button>

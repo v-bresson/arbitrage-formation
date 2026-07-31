@@ -125,6 +125,22 @@ function qa_schema_migrations() {
                 ['table' => 'tiles', 'column' => 'scope', 'definition' => "VARCHAR(20) NOT NULL DEFAULT 'candidat'"],
             ],
         ],
+        [
+            'id' => 'questions_options_ef_2026_07',
+            'description' => "Ajout de 2 propositions de réponse supplémentaires (E, F) sur les questions",
+            'columns' => [
+                ['table' => 'questions', 'column' => 'option_e', 'definition' => 'TEXT NULL'],
+                ['table' => 'questions', 'column' => 'option_f', 'definition' => 'TEXT NULL'],
+            ],
+        ],
+        [
+            'id' => 'quizzes_selection_manuelle_2026_07',
+            'description' => "Ajout de la sélection manuelle des questions sur les QCM Examen",
+            'columns' => [
+                ['table' => 'quizzes', 'column' => 'selection_mode', 'definition' => "VARCHAR(20) NOT NULL DEFAULT 'auto'"],
+                ['table' => 'quizzes', 'column' => 'questions_manuelles', 'definition' => 'TEXT NULL'],
+            ],
+        ],
     ];
 }
 
@@ -220,8 +236,8 @@ function get_db() {
     // ---------------------------------------------------------------
     // Questions : QCM à réponse unique, QCM à réponses multiples, ou
     // question ouverte (réponse libre, non notée automatiquement).
-    // Une question peut être réservée à l'examen (exclue des tirages
-    // des questionnaires d'entraînement).
+    // Jusqu'à 6 propositions de réponse (option_a à option_f), A et B
+    // obligatoires, C à F facultatives.
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS questions (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -233,6 +249,8 @@ function get_db() {
         option_b TEXT NULL,
         option_c TEXT NULL,
         option_d TEXT NULL,
+        option_e TEXT NULL,
+        option_f TEXT NULL,
         bonne_reponse VARCHAR(50) NULL,
         points INT NOT NULL DEFAULT 1,
         examen_uniquement TINYINT(1) NOT NULL DEFAULT 0,
@@ -243,22 +261,26 @@ function get_db() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // ---------------------------------------------------------------
-    // Questionnaires : entraînement (piochent uniquement dans les
-    // questions non réservées à l'examen) ou examen (piochent dans
-    // toute la banque, fenêtre d'ouverture, durée, tentatives max et
-    // affichage du score configurables). `repartition` est un JSON
-    // optionnel [{"categorie":"Sécurité","nombre_questions":3}, ...] :
-    // quand il est renseigné, il remplace categorie_filtre/nombre_questions
-    // et pioche un nombre de questions donné par thématique.
+    // QCM Examen (table quizzes, nom conservé pour compat) : pioche dans
+    // toute la banque de questions, fenêtre d'ouverture, durée,
+    // tentatives max et affichage du score configurables. Deux méthodes
+    // de sélection des questions (`selection_mode`) :
+    //   - 'auto' : tirage aléatoire, par répartition thématique (JSON
+    //     `repartition` = [{"categorie":"Sécurité","nombre_questions":3}])
+    //     ou globale (categorie_filtre/nombre_questions) ;
+    //   - 'manuel' : liste fixe de questions choisies une à une dans la
+    //     banque (JSON `questions_manuelles` = [id, id, ...]).
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS quizzes (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         nom VARCHAR(255) NOT NULL,
         description TEXT NULL,
-        type VARCHAR(20) NOT NULL DEFAULT 'entrainement',
+        type VARCHAR(20) NOT NULL DEFAULT 'examen',
+        selection_mode VARCHAR(20) NOT NULL DEFAULT 'auto',
         categorie_filtre VARCHAR(191) NULL,
         nombre_questions INT NOT NULL DEFAULT 10,
         repartition TEXT NULL,
+        questions_manuelles TEXT NULL,
         note_max DECIMAL(6,2) NOT NULL DEFAULT 20,
         seuil_reussite DECIMAL(6,2) NOT NULL DEFAULT 10,
         duree_minutes INT NULL,

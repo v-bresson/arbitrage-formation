@@ -72,7 +72,7 @@ function bind() {
 
     const links = [];
     if (canRead('questions')) links.push({ nom: 'Banque de questions', description: 'Consulter ou gérer les questions.', tab: 'questions', icone: 'clipboard' });
-    if (canRead('quizzes')) links.push({ nom: 'Questionnaires', description: 'Consulter ou gérer les questionnaires.', tab: 'quizzes', icone: 'target' });
+    if (canRead('quizzes')) links.push({ nom: 'QCM Examen', description: 'Consulter ou gérer les QCM Examen.', tab: 'quizzes', icone: 'target' });
     if (canRead('attempts')) links.push({ nom: 'Résultats', description: 'Suivre les tentatives des candidats.', tab: 'attempts', icone: 'trophy' });
 
     document.getElementById('links-grid').innerHTML = links.map(l => `

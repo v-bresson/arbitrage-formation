@@ -17,7 +17,11 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $userId = (int)$_SESSION['user_id'];
 
 if ($action === 'get') {
-    $stmt = $pdo->prepare('SELECT username, nom, prenom, email, numero_licence, telephone, club FROM users WHERE id = ?');
+    $hasFormation = qa_column_exists($pdo, 'users', 'niveau_formation');
+    $hasEntreeFormation = qa_column_exists($pdo, 'users', 'date_entree_formation');
+    $extraCols = ($hasFormation ? ', niveau_formation' : '') . ($hasEntreeFormation ? ', date_entree_formation' : '');
+
+    $stmt = $pdo->prepare("SELECT username, nom, prenom, email, numero_licence, telephone, club, formateur_referent_id$extraCols FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
     if (!$row) {
@@ -25,6 +29,21 @@ if ($action === 'get') {
         echo json_encode(['success' => false, 'message' => 'Compte introuvable']);
         exit;
     }
+
+    // Informations renseignées par l'administrateur (fiche formation),
+    // affichées en lecture seule sur "Mon compte" : formateur référent,
+    // niveau de diplôme en cours, date d'entrée en formation.
+    $formateurNom = null;
+    if (!empty($row['formateur_referent_id'])) {
+        $fStmt = $pdo->prepare('SELECT username, nom, prenom FROM users WHERE id = ?');
+        $fStmt->execute([$row['formateur_referent_id']]);
+        $f = $fStmt->fetch();
+        if ($f) $formateurNom = trim(($f['prenom'] ?? '') . ' ' . ($f['nom'] ?? '')) ?: $f['username'];
+    }
+    $row['formateur_referent_nom'] = $formateurNom;
+    if (!$hasFormation) $row['niveau_formation'] = null;
+    if (!$hasEntreeFormation) $row['date_entree_formation'] = null;
+
     echo json_encode(['success' => true, 'account' => $row]);
     exit;
 }

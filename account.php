@@ -36,6 +36,14 @@
         </div>
         <div class="field"><label>Club</label><input type="text" id="acc-club"></div>
 
+        <h2 style="margin:12px 0 0;">Informations ajoutées par l'administrateur</h2>
+        <p class="modal-hint" style="margin:0;">Ces informations sont renseignées par l'administrateur et ne sont pas modifiables ici.</p>
+        <div class="field-row">
+            <div class="field"><label>Formateur référent</label><input type="text" id="acc-formateur-referent" disabled></div>
+            <div class="field"><label>Niveau de diplôme en cours</label><input type="text" id="acc-niveau-formation" disabled></div>
+        </div>
+        <div class="field"><label>Date d'entrée en formation</label><input type="text" id="acc-date-entree-formation" disabled></div>
+
         <h2 style="margin:12px 0 0;">Changer de mot de passe</h2>
         <p class="modal-hint" style="margin:0;">Laisser vide pour conserver le mot de passe actuel.</p>
         <div class="field"><label>Mot de passe actuel</label><input type="password" id="acc-current-password" autocomplete="current-password"></div>
@@ -80,6 +88,10 @@ async function init() {
             document.getElementById('acc-telephone').value = a.telephone || '';
             document.getElementById('acc-licence').value = a.numero_licence || '';
             document.getElementById('acc-club').value = a.club || '';
+            document.getElementById('acc-formateur-referent').value = a.formateur_referent_nom || '—';
+            document.getElementById('acc-niveau-formation').value = a.niveau_formation || '—';
+            document.getElementById('acc-date-entree-formation').value = a.date_entree_formation
+                ? new Date(a.date_entree_formation).toLocaleDateString('fr-FR') : '—';
         }
     } catch (err) { /* pas bloquant */ }
 }

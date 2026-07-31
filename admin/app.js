@@ -1,10 +1,10 @@
 // ===================================================================
 // Logique de l'espace admin : auth, CRUD questions (QCM unique/multiple/
-// ouverte + image, réservation examen), import CSV/XLSX, CRUD
-// questionnaires (entraînement/examen, chrono, fenêtre d'ouverture,
-// tentatives max, affichage du score), tuiles du dashboard, comptes
-// utilisateurs, maintenance (mise à jour/sauvegardes/journal),
-// consultation des résultats.
+// ouverte + image, 2 à 6 propositions de réponse), import CSV/XLSX, CRUD
+// des QCM Examen (sélection automatique ou manuelle des questions, chrono,
+// fenêtre d'ouverture, tentatives max, affichage du score), tuiles du
+// dashboard, comptes utilisateurs, maintenance (mise à jour/sauvegardes/
+// journal), consultation des résultats.
 //
 // ViewModel : un seul état réactif (vm, voir assets/mvvm.js) tient les
 // collections chargées depuis l'API et quelques messages d'état ; une
@@ -54,7 +54,7 @@ const TAB_SECTIONS = {
 const TAB_LABELS = {
     overview: 'Dashboard',
     questions: 'Banque de questions',
-    quizzes: 'Questionnaires',
+    quizzes: 'QCM Examen',
     attempts: 'Résultats',
     users: 'Comptes utilisateurs',
     candidats: 'Candidats',
@@ -264,7 +264,7 @@ qaWatchEffect(() => {
     const filtered = filter ? vm.questions.filter(q => q.categorie === filter) : vm.questions;
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
         return;
     }
 
@@ -275,7 +275,6 @@ qaWatchEffect(() => {
             <td>${escapeHtml(q.enonce.slice(0, 70))}${q.enonce.length > 70 ? '…' : ''}</td>
             <td>${formatBonneReponse(q)}</td>
             <td>${q.points}</td>
-            <td>${q.examen_uniquement ? '<span class="pill warn">Examen</span>' : '—'}</td>
             <td>${q.actif ? '<span class="pill ok">Active</span>' : '<span class="pill">Inactive</span>'}</td>
             <td class="row-actions">
                 ${canManage('questions') ? `<button type="button" class="secondary edit-q-btn" data-id="${q.id}">Modifier</button><button type="button" class="danger delete-q-btn" data-id="${q.id}">Supprimer</button>` : ''}
@@ -292,6 +291,72 @@ document.getElementById('category-filter').addEventListener('change', (e) => { v
 const questionModal = document.getElementById('question-modal-overlay');
 const questionForm = document.getElementById('question-form');
 const qTypeSelect = document.getElementById('q-type');
+const QUESTION_OPTION_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f'];
+const QUESTION_MIN_OPTIONS = 2;
+const QUESTION_MAX_OPTIONS = 6;
+
+// Nombre de propositions actuellement affichées (2 par défaut, jusqu'à 6).
+let qOptionCount = QUESTION_MIN_OPTIONS;
+
+function renderOptionRows(values) {
+    const list = document.getElementById('q-options-list');
+    list.innerHTML = '';
+    for (let i = 0; i < qOptionCount; i++) {
+        const letter = QUESTION_OPTION_LETTERS[i];
+        const removable = i >= QUESTION_MIN_OPTIONS;
+        const row = document.createElement('div');
+        row.className = 'field-row';
+        row.style.alignItems = 'flex-end';
+        row.innerHTML = `
+            <div class="field" style="flex:1;">
+                <label>Réponse ${letter.toUpperCase()}${i >= QUESTION_MIN_OPTIONS ? ' (optionnelle)' : ''}</label>
+                <input type="text" class="q-opt-input" data-letter="${letter}" value="${escapeHtml(values?.[letter] || '')}">
+            </div>
+            ${removable ? `<button type="button" class="secondary q-opt-remove-btn" style="padding:10px 14px;">Retirer</button>` : ''}
+        `;
+        if (removable) {
+            row.querySelector('.q-opt-remove-btn').addEventListener('click', () => {
+                const current = getOptionValues();
+                qOptionCount--;
+                renderOptionRows(current);
+                updateBonneReponseFields();
+            });
+        }
+        list.appendChild(row);
+    }
+    document.getElementById('q-add-option-btn').classList.toggle('hidden', qOptionCount >= QUESTION_MAX_OPTIONS);
+}
+
+function getOptionValues() {
+    const values = {};
+    document.querySelectorAll('.q-opt-input').forEach(input => { values[input.dataset.letter] = input.value; });
+    return values;
+}
+
+document.getElementById('q-add-option-btn').addEventListener('click', () => {
+    if (qOptionCount >= QUESTION_MAX_OPTIONS) return;
+    const current = getOptionValues();
+    qOptionCount++;
+    renderOptionRows(current);
+    updateBonneReponseFields();
+});
+
+// Régénère le select (réponse unique) et les cases à cocher (réponses
+// multiples) pour qu'ils ne proposent que les lettres actuellement affichées.
+function updateBonneReponseFields(selectedUnique, selectedMultiple) {
+    const letters = QUESTION_OPTION_LETTERS.slice(0, qOptionCount);
+    const bonneSelect = document.getElementById('q-bonne');
+    const previousUnique = selectedUnique ?? bonneSelect.value;
+    bonneSelect.innerHTML = letters.map(l => `<option value="${l}">${l.toUpperCase()}</option>`).join('');
+    bonneSelect.value = letters.includes(previousUnique) ? previousUnique : letters[0];
+
+    const multiList = document.getElementById('q-bonne-multi-list');
+    const previousMultiple = selectedMultiple ?? Array.from(questionForm.querySelectorAll('.q-bonne-multi:checked')).map(cb => cb.value);
+    multiList.innerHTML = letters.map(l => `
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="q-bonne-multi" value="${l}" style="width:auto;"> ${l.toUpperCase()}</label>
+    `).join('');
+    multiList.querySelectorAll('.q-bonne-multi').forEach(cb => { cb.checked = previousMultiple.includes(cb.value); });
+}
 
 function updateQuestionTypeFields() {
     const type = qTypeSelect.value;
@@ -299,8 +364,9 @@ function updateQuestionTypeFields() {
     document.getElementById('q-ouverte-hint').style.display = type === 'ouverte' ? 'block' : 'none';
     document.getElementById('q-bonne-unique-field').classList.toggle('hidden', type !== 'qcm_unique');
     document.getElementById('q-bonne-multiple-field').classList.toggle('hidden', type !== 'qcm_multiple');
-    document.getElementById('q-a').required = type !== 'ouverte';
-    document.getElementById('q-b').required = type !== 'ouverte';
+    const inputs = document.querySelectorAll('.q-opt-input');
+    if (inputs[0]) inputs[0].required = type !== 'ouverte';
+    if (inputs[1]) inputs[1].required = type !== 'ouverte';
 }
 qTypeSelect.addEventListener('change', updateQuestionTypeFields);
 
@@ -310,13 +376,13 @@ function openQuestionModal(id) {
     questionForm.reset();
     document.getElementById('q-id').value = '';
     document.getElementById('q-points').value = 1;
-    document.getElementById('q-examen').checked = false;
     document.getElementById('q-actif').checked = true;
     document.getElementById('q-type').value = 'qcm_unique';
     document.getElementById('q-image-preview').classList.add('hidden');
     document.getElementById('q-remove-image').checked = false;
     document.getElementById('question-modal-title').textContent = 'Nouvelle question';
-    questionForm.querySelectorAll('.q-bonne-multi').forEach(cb => cb.checked = false);
+
+    qOptionCount = QUESTION_MIN_OPTIONS;
 
     if (id) {
         const q = vm.questions.find(x => String(x.id) === String(id));
@@ -327,18 +393,22 @@ function openQuestionModal(id) {
             document.getElementById('q-type').value = q.type;
             document.getElementById('q-points').value = q.points;
             document.getElementById('q-enonce').value = q.enonce;
-            document.getElementById('q-a').value = q.options.a || '';
-            document.getElementById('q-b').value = q.options.b || '';
-            document.getElementById('q-c').value = q.options.c || '';
-            document.getElementById('q-d').value = q.options.d || '';
-            document.getElementById('q-examen').checked = q.examen_uniquement;
             document.getElementById('q-actif').checked = q.actif;
 
+            // Le nombre de propositions affichées correspond au dernier
+            // emplacement (a-f) ayant un texte non vide, avec un minimum de 2.
+            let lastFilled = QUESTION_MIN_OPTIONS;
+            QUESTION_OPTION_LETTERS.forEach((l, i) => { if (q.options[l]) lastFilled = i + 1; });
+            qOptionCount = Math.max(QUESTION_MIN_OPTIONS, lastFilled);
+
+            renderOptionRows(q.options);
+
             if (q.type === 'qcm_unique') {
-                document.getElementById('q-bonne').value = q.bonne_reponse || 'a';
+                updateBonneReponseFields(q.bonne_reponse || 'a');
             } else if (q.type === 'qcm_multiple') {
-                const letters = (q.bonne_reponse || '').split(',');
-                questionForm.querySelectorAll('.q-bonne-multi').forEach(cb => cb.checked = letters.includes(cb.value));
+                updateBonneReponseFields(null, (q.bonne_reponse || '').split(','));
+            } else {
+                updateBonneReponseFields();
             }
 
             if (q.image) {
@@ -346,6 +416,9 @@ function openQuestionModal(id) {
                 document.getElementById('q-image-preview-img').src = '../' + q.image;
             }
         }
+    } else {
+        renderOptionRows();
+        updateBonneReponseFields();
     }
     updateQuestionTypeFields();
     questionModal.classList.remove('hidden');
@@ -376,13 +449,10 @@ questionForm.addEventListener('submit', async (e) => {
     formData.append('categorie', document.getElementById('q-categorie').value);
     formData.append('type', type);
     formData.append('enonce', document.getElementById('q-enonce').value);
-    formData.append('option_a', document.getElementById('q-a').value);
-    formData.append('option_b', document.getElementById('q-b').value);
-    formData.append('option_c', document.getElementById('q-c').value);
-    formData.append('option_d', document.getElementById('q-d').value);
+    const optionValues = getOptionValues();
+    QUESTION_OPTION_LETTERS.forEach(l => formData.append('option_' + l, optionValues[l] || ''));
     formData.append('bonne_reponse', bonneReponse);
     formData.append('points', document.getElementById('q-points').value || 1);
-    formData.append('examen_uniquement', document.getElementById('q-examen').checked ? '1' : '');
     formData.append('actif', document.getElementById('q-actif').checked ? '1' : '');
     formData.append('remove_image', document.getElementById('q-remove-image').checked ? '1' : '');
     const imageFile = document.getElementById('q-image').files[0];
@@ -489,7 +559,7 @@ async function loadQuizzes() {
     }
 }
 
-// ---------- Rendu : grille des questionnaires ----------
+// ---------- Rendu : grille des QCM Examen ----------
 qaWatchEffect(() => {
     const grid = document.getElementById('quizzes-grid');
     document.getElementById('quizzes-msg').textContent = vm.msg.quizzes;
@@ -503,7 +573,7 @@ qaWatchEffect(() => {
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                 <h2>${escapeHtml(q.nom)}</h2>
-                <span class="pill ${q.type === 'examen' ? 'warn' : 'ok'}">${q.type === 'examen' ? 'Examen' : 'Entraînement'}</span>
+                <span class="pill">${q.selection_mode === 'manuel' ? 'Sélection manuelle' : 'Tirage automatique'}</span>
             </div>
             <p>${escapeHtml(q.description || '')}</p>
             <div class="meta">
@@ -532,14 +602,52 @@ qaWatchEffect(() => {
 
 const quizModal = document.getElementById('quiz-modal-overlay');
 const quizForm = document.getElementById('quiz-form');
-const qzTypeSelect = document.getElementById('qz-type');
+const qzSelectionModeSelect = document.getElementById('qz-selection-mode');
 
-function updateQuizTypeFields() {
-    const isExam = qzTypeSelect.value === 'examen';
-    document.getElementById('qz-ouverture-fields').classList.toggle('hidden', !isExam);
-    document.getElementById('qz-tentatives-field').classList.toggle('hidden', !isExam);
+// Sélection manuelle des questions : id des questions choisies, dans l'ordre
+// de sélection (conservé même si la recherche filtre ensuite l'affichage).
+let qzManuelSelectedIds = [];
+
+function updateQuizSelectionModeFields() {
+    const isManuel = qzSelectionModeSelect.value === 'manuel';
+    document.getElementById('qz-auto-fields').classList.toggle('hidden', isManuel);
+    document.getElementById('qz-manuel-fields').classList.toggle('hidden', !isManuel);
+    if (isManuel) renderManuelQuestionList();
 }
-qzTypeSelect.addEventListener('change', updateQuizTypeFields);
+qzSelectionModeSelect.addEventListener('change', updateQuizSelectionModeFields);
+
+function renderManuelQuestionList() {
+    const search = document.getElementById('qz-manuel-search').value.trim().toLowerCase();
+    const list = document.getElementById('qz-manuel-list');
+    const questions = vm.questions.filter(q => !search
+        || q.enonce.toLowerCase().includes(search)
+        || q.categorie.toLowerCase().includes(search));
+
+    document.getElementById('qz-manuel-count').textContent = qzManuelSelectedIds.length;
+
+    if (!questions.length) {
+        list.innerHTML = `<p class="msg" style="padding:12px;">Aucune question ne correspond à la recherche.</p>`;
+        return;
+    }
+
+    list.innerHTML = `<table><tbody>${questions.map(q => `
+        <tr>
+            <td style="width:36px;"><input type="checkbox" class="qz-manuel-check" data-id="${q.id}" style="width:auto;" ${qzManuelSelectedIds.includes(q.id) ? 'checked' : ''}></td>
+            <td><span class="pill">${escapeHtml(q.categorie)}</span> ${escapeHtml(q.enonce.slice(0, 90))}${q.enonce.length > 90 ? '…' : ''}</td>
+        </tr>
+    `).join('')}</tbody></table>`;
+
+    list.querySelectorAll('.qz-manuel-check').forEach(cb => cb.addEventListener('change', () => {
+        const id = parseInt(cb.dataset.id, 10);
+        if (cb.checked) {
+            if (!qzManuelSelectedIds.includes(id)) qzManuelSelectedIds.push(id);
+        } else {
+            qzManuelSelectedIds = qzManuelSelectedIds.filter(x => x !== id);
+        }
+        document.getElementById('qz-manuel-count').textContent = qzManuelSelectedIds.length;
+    }));
+}
+document.getElementById('qz-manuel-search').addEventListener('input', renderManuelQuestionList);
 
 // ---------- Répartition des questions par thématique ----------
 const repartitionToggle = document.getElementById('qz-repartition-toggle');
@@ -581,7 +689,7 @@ function openQuizModal(id) {
     modalMsg.textContent = '';
     quizForm.reset();
     document.getElementById('qz-id').value = '';
-    document.getElementById('qz-type').value = 'entrainement';
+    document.getElementById('qz-selection-mode').value = 'auto';
     document.getElementById('qz-nombre').value = 10;
     document.getElementById('qz-notemax').value = 20;
     document.getElementById('qz-seuil').value = 10;
@@ -591,18 +699,20 @@ function openQuizModal(id) {
     document.getElementById('qz-ouverture-fin').value = '';
     document.getElementById('qz-afficher-score').checked = true;
     document.getElementById('qz-actif').checked = true;
-    document.getElementById('quiz-modal-title').textContent = 'Nouveau questionnaire';
+    document.getElementById('quiz-modal-title').textContent = 'Nouveau QCM Examen';
     repartitionRows.innerHTML = '';
     repartitionToggle.checked = false;
+    qzManuelSelectedIds = [];
+    document.getElementById('qz-manuel-search').value = '';
 
     if (id) {
         const q = vm.quizzes.find(x => String(x.id) === String(id));
         if (q) {
-            document.getElementById('quiz-modal-title').textContent = 'Modifier le questionnaire';
+            document.getElementById('quiz-modal-title').textContent = 'Modifier le QCM Examen';
             document.getElementById('qz-id').value = q.id;
             document.getElementById('qz-nom').value = q.nom;
             document.getElementById('qz-desc').value = q.description || '';
-            document.getElementById('qz-type').value = q.type;
+            document.getElementById('qz-selection-mode').value = q.selection_mode || 'auto';
             document.getElementById('qz-categorie').value = q.categorie_filtre || '';
             document.getElementById('qz-nombre').value = q.nombre_questions;
             document.getElementById('qz-notemax').value = q.note_max;
@@ -618,10 +728,13 @@ function openQuizModal(id) {
                 repartitionToggle.checked = true;
                 q.repartition.forEach(p => addRepartitionRow(p.categorie, p.nombre_questions));
             }
+            if (q.questions_manuelles && q.questions_manuelles.length) {
+                qzManuelSelectedIds = q.questions_manuelles.map(m => m.id);
+            }
         }
     }
-    updateQuizTypeFields();
     updateRepartitionToggleFields();
+    updateQuizSelectionModeFields();
     quizModal.classList.remove('hidden');
 }
 
@@ -636,15 +749,23 @@ quizForm.addEventListener('submit', async (e) => {
     const saveBtn = document.getElementById('quiz-save-btn');
     saveBtn.disabled = true;
 
-    const repartition = repartitionToggle.checked
+    const selectionMode = document.getElementById('qz-selection-mode').value;
+
+    const repartition = (selectionMode === 'auto' && repartitionToggle.checked)
         ? Array.from(repartitionRows.querySelectorAll('.field-row')).map(row => ({
             categorie: row.querySelector('.qz-rep-categorie').value.trim(),
             nombre_questions: parseInt(row.querySelector('.qz-rep-nombre').value, 10) || 1,
         })).filter(p => p.categorie !== '')
         : [];
 
-    if (repartitionToggle.checked && !repartition.length) {
+    if (selectionMode === 'auto' && repartitionToggle.checked && !repartition.length) {
         modalMsg.textContent = 'Ajoutez au moins une thématique avec un nom, ou désactivez la répartition par thématique';
+        saveBtn.disabled = false;
+        return;
+    }
+
+    if (selectionMode === 'manuel' && !qzManuelSelectedIds.length) {
+        modalMsg.textContent = 'Sélectionnez au moins une question dans la banque';
         saveBtn.disabled = false;
         return;
     }
@@ -653,10 +774,11 @@ quizForm.addEventListener('submit', async (e) => {
         id: document.getElementById('qz-id').value || null,
         nom: document.getElementById('qz-nom').value,
         description: document.getElementById('qz-desc').value,
-        type: document.getElementById('qz-type').value,
+        selection_mode: selectionMode,
         categorie_filtre: document.getElementById('qz-categorie').value,
         nombre_questions: parseInt(document.getElementById('qz-nombre').value, 10) || 1,
         repartition,
+        questions_manuelles: qzManuelSelectedIds,
         note_max: parseFloat(document.getElementById('qz-notemax').value) || 20,
         seuil_reussite: parseFloat(document.getElementById('qz-seuil').value) || 0,
         duree_minutes: document.getElementById('qz-duree').value || '',
@@ -688,7 +810,7 @@ quizForm.addEventListener('submit', async (e) => {
 });
 
 async function deleteQuiz(id) {
-    if (!confirm('Supprimer ce questionnaire ? Les tentatives déjà archivées seront conservées.')) return;
+    if (!confirm('Supprimer ce QCM Examen ? Les tentatives déjà archivées seront conservées.')) return;
     try {
         const res = await fetch('../api/quizzes.php?action=delete', {
             method: 'POST',
@@ -722,11 +844,11 @@ async function loadAttempts() {
 qaWatchEffect(() => {
     const tbody = document.getElementById('attempts-tbody');
     if (vm.msg.attempts) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
         return;
     }
     if (!vm.attempts.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
         return;
     }
 
@@ -742,7 +864,6 @@ qaWatchEffect(() => {
         return `
         <tr>
             <td>${escapeHtml(a.quiz_nom)}</td>
-            <td><span class="pill ${a.quiz_type === 'examen' ? 'warn' : 'ok'}">${a.quiz_type === 'examen' ? 'Examen' : 'Entraînement'}</span></td>
             <td>${escapeHtml(a.candidat)}</td>
             <td>${STATUT_LABELS[a.statut] || a.statut}</td>
             <td>${noteCell}</td>
