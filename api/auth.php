@@ -112,6 +112,7 @@ if ($action === 'check') {
             'has_admin_access' => qa_has_any_admin_access($pdo, (int)$_SESSION['user_id'], $role),
             'has_formateur_access' => qa_has_formateur_access($pdo, (int)$_SESSION['user_id'], $role),
             'has_pure_admin_access' => qa_has_pure_admin_access($pdo, (int)$_SESSION['user_id'], $role),
+            'has_candidat_access' => qa_has_candidat_tile_access($pdo, (int)$_SESSION['user_id'], $role),
             'nom' => $profile['nom'] ?? null,
             'prenom' => $profile['prenom'] ?? null,
             'club' => $profile['club'] ?? null,

@@ -111,6 +111,7 @@ const vm = qaReactive({
     username: null,
     role: null,
     permissions: {},
+    hasCandidatAccess: false,
     hasFormateurAccess: false,
     hasPureAdminAccess: false,
     tiles: null,
@@ -126,9 +127,10 @@ function canManageTiles() {
 function bind() {
     document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
 
-    const spaces = [
-        { nom: 'Espace candidat', description: 'Vos stages, questionnaires et parcours de formation.', href: 'candidate.php', icone: 'target' },
-    ];
+    const spaces = [];
+    if (vm.hasCandidatAccess) {
+        spaces.push({ nom: 'Espace candidat', description: 'Vos stages, questionnaires et parcours de formation.', href: 'candidate.php', icone: 'target' });
+    }
     if (vm.hasFormateurAccess) {
         spaces.push({ nom: 'Espace formateur', description: 'Suivi des candidats : questions, questionnaires et résultats.', href: 'formateur.php', icone: 'users' });
     }
@@ -393,6 +395,7 @@ async function init() {
         vm.username = data.username;
         vm.role = data.role;
         vm.permissions = data.permissions || {};
+        vm.hasCandidatAccess = !!data.has_candidat_access;
         vm.hasFormateurAccess = !!data.has_formateur_access;
         vm.hasPureAdminAccess = !!data.has_pure_admin_access;
 

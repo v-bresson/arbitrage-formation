@@ -33,7 +33,57 @@
 
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
-    <div class="grid" id="links-grid"></div>
+    <div class="grid" id="links-grid" style="margin-bottom:24px;"></div>
+
+    <!-- ---------- CANDIDATS : recherche + fiche ---------- -->
+    <div id="candidats-section">
+        <h2 style="margin-bottom:12px;">Candidats</h2>
+        <div class="field" style="max-width:420px;margin:0 auto 20px;">
+            <label>Rechercher un candidat (identifiant, nom, prénom, club)</label>
+            <input type="text" id="candidats-search-input" placeholder="Rechercher un candidat...">
+        </div>
+        <div class="table-wrap panel hidden" id="candidats-search-results" style="padding:0;">
+            <table>
+                <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th></th></tr></thead>
+                <tbody id="candidats-search-tbody"></tbody>
+            </table>
+        </div>
+        <p class="msg" id="candidats-search-msg"></p>
+
+        <div id="candidat-fiche" class="hidden" style="margin-top:24px;">
+            <div class="panel" id="fiche-profile-card" style="margin-bottom:24px;flex-direction:row;flex-wrap:wrap;gap:28px;">
+                <div>
+                    <p class="modal-hint" style="margin:0;">Nom</p>
+                    <p id="fiche-nom" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Prénom</p>
+                    <p id="fiche-prenom" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Club</p>
+                    <p id="fiche-club" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">N° de licence</p>
+                    <p id="fiche-licence" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Niveau de formation</p>
+                    <p id="fiche-niveau" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Option</p>
+                    <p id="fiche-option" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+                <div>
+                    <p class="modal-hint" style="margin:0;">Date d'entrée en formation</p>
+                    <p id="fiche-date-entree" style="font-weight:600;font-size:1.05rem;">—</p>
+                </div>
+            </div>
+            <div class="grid" id="fiche-stats-grid" style="margin-bottom:24px;"></div>
+        </div>
+    </div>
 </div>
 
 <footer>&copy; <span id="year"></span> ArcheryOps - Arbitrage</footer>
@@ -93,6 +143,81 @@ async function loadStats() {
         const res = await fetch('api/attempt.php?action=formateur-stats');
         if (!res.ok) return;
         vm.stats = await res.json();
+    } catch (err) { /* pas bloquant */ }
+}
+
+// ---------- Candidats : recherche (bornée par rôle côté API, voir
+// api/mes_candidats.php) + fiche en lecture seule ----------
+let candidatsSearchTimer = null;
+
+function renderCandidatsSearchResults(list) {
+    const tbody = document.getElementById('candidats-search-tbody');
+    const msg = document.getElementById('candidats-search-msg');
+    if (!list.length) {
+        tbody.innerHTML = '';
+        msg.textContent = 'Aucun candidat trouvé.';
+        return;
+    }
+    msg.textContent = '';
+    tbody.innerHTML = list.map(c => `
+        <tr>
+            <td>${escapeHtml(c.username)}</td>
+            <td>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ')) || '—'}</td>
+            <td>${escapeHtml(c.club || '—')}</td>
+            <td class="row-actions"><button type="button" class="secondary voir-fiche-btn" data-id="${c.id}">Voir la fiche</button></td>
+        </tr>
+    `).join('');
+    tbody.querySelectorAll('.voir-fiche-btn').forEach(btn => btn.addEventListener('click', () => showFiche(btn.dataset.id)));
+}
+
+async function searchCandidats(q) {
+    try {
+        const res = await fetch('api/mes_candidats.php?action=search&q=' + encodeURIComponent(q));
+        if (res.status === 401) { window.location.href = 'index.php'; return; }
+        const list = await res.json();
+        renderCandidatsSearchResults(Array.isArray(list) ? list : []);
+    } catch (err) {
+        document.getElementById('candidats-search-msg').textContent = 'Erreur de chargement des candidats';
+    }
+}
+
+document.getElementById('candidats-search-input').addEventListener('input', (e) => {
+    clearTimeout(candidatsSearchTimer);
+    const q = e.target.value.trim();
+    const resultsBox = document.getElementById('candidats-search-results');
+    if (!q) {
+        resultsBox.classList.add('hidden');
+        document.getElementById('candidats-search-tbody').innerHTML = '';
+        document.getElementById('candidats-search-msg').textContent = '';
+        return;
+    }
+    resultsBox.classList.remove('hidden');
+    candidatsSearchTimer = setTimeout(() => searchCandidats(q), 250);
+});
+
+async function showFiche(id) {
+    try {
+        const res = await fetch('api/mes_candidats.php?action=fiche&id=' + encodeURIComponent(id));
+        if (!res.ok) return;
+        const f = await res.json();
+        document.getElementById('fiche-prenom').textContent = f.prenom || '—';
+        document.getElementById('fiche-nom').textContent = f.nom || '—';
+        document.getElementById('fiche-club').textContent = f.club || '—';
+        document.getElementById('fiche-licence').textContent = f.numero_licence || '—';
+        document.getElementById('fiche-niveau').textContent = f.niveau_formation || '—';
+        document.getElementById('fiche-option').textContent = f.option_pratique || '—';
+        document.getElementById('fiche-date-entree').textContent = f.date_entree_formation
+            ? new Date(f.date_entree_formation).toLocaleDateString('fr-FR') : '—';
+
+        const s = f.stats || {};
+        document.getElementById('fiche-stats-grid').innerHTML = `
+            <div class="card"><p style="color:var(--text-secondary);">Questionnaires complétés</p><h2 style="font-size:2rem;">${s.total_tentatives ?? 0}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Réussis</p><h2 style="font-size:2rem;">${s.reussies ?? 0}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Score moyen</p><h2 style="font-size:2rem;">${s.moyenne_pct !== null && s.moyenne_pct !== undefined ? s.moyenne_pct + '%' : '—'}</h2></div>
+            <div class="card"><p style="color:var(--text-secondary);">Dernière tentative</p><h2 style="font-size:1.3rem;">${s.derniere_tentative ? new Date(s.derniere_tentative).toLocaleDateString('fr-FR') : '—'}</h2></div>
+        `;
+        document.getElementById('candidat-fiche').classList.remove('hidden');
+        document.getElementById('candidat-fiche').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) { /* pas bloquant */ }
 }
 

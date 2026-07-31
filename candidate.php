@@ -55,8 +55,8 @@
         <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
     </div>
 
-    <!-- ---------- VUE FORMATEUR : MES CANDIDATS ---------- -->
-    <div id="formateur-view" class="hidden">
+    <!-- ---------- VUE SUPER-ADMIN : RECHERCHE CANDIDAT (lecture seule) ---------- -->
+    <div id="admin-search-view" class="hidden">
         <div class="field" style="max-width:420px;margin:0 auto 20px;">
             <label>Rechercher un candidat (identifiant, nom, prénom, club)</label>
             <input type="text" id="candidats-search-input" placeholder="Rechercher un candidat...">
@@ -182,8 +182,8 @@ const vm = qaReactive({
     stats: null,
     manageMode: false,
     adminTiles: null,
-    formateurExclusiveView: false,
-    formateurHasSearched: false,
+    adminSearchView: false,
+    adminHasSearched: false,
 });
 
 function canManageTiles() {
@@ -209,17 +209,17 @@ function bind() {
     // Formateur (vue exclusive, voir includes/permissions.php) n'a de toute
     // façon pas de profil/stats candidat à afficher ici ; les tuiles (voir
     // plus bas, communes aux deux vues) restent visibles et gérables.
-    document.getElementById('profile-card').classList.toggle('hidden', inManageMode || vm.formateurExclusiveView);
-    document.getElementById('stats-grid').classList.toggle('hidden', inManageMode || vm.formateurExclusiveView);
+    document.getElementById('profile-card').classList.toggle('hidden', inManageMode || vm.adminSearchView);
+    document.getElementById('stats-grid').classList.toggle('hidden', inManageMode || vm.adminSearchView);
 
-    if (!inManageMode && !vm.formateurExclusiveView) renderStats();
+    if (!inManageMode && !vm.adminSearchView) renderStats();
 
     const grid = document.getElementById('tiles-grid');
     const msg = document.getElementById('tiles-msg');
 
     // Vue formateur/super-admin : les tuiles ne s'affichent qu'une fois une
     // recherche lancée (pas par défaut à l'arrivée sur la page).
-    const hideTilesUntilSearch = vm.formateurExclusiveView && !inManageMode && !vm.formateurHasSearched;
+    const hideTilesUntilSearch = vm.adminSearchView && !inManageMode && !vm.adminHasSearched;
     grid.classList.toggle('hidden', hideTilesUntilSearch);
     msg.classList.toggle('hidden', hideTilesUntilSearch);
     if (hideTilesUntilSearch) {
@@ -520,16 +520,21 @@ async function init() {
         vm.permissions = data.permissions || {};
         vm.profile = { nom: data.nom, prenom: data.prenom, club: data.club, numero_licence: data.numero_licence };
 
-        // Choix exclusif : un compte Formateur voit la recherche de ses
-        // candidats assignés à la place de son propre profil/stats candidat,
-        // même s'il est aussi Candidat (voir includes/permissions.php,
-        // qa_has_formateur_role). Les tuiles (voir plus bas dans le HTML,
-        // communes aux deux vues) restent affichées dans tous les cas.
-        if ((data.roles || []).includes('formateur')) {
-            vm.formateurExclusiveView = true;
-            document.getElementById('candidate-view').classList.add('hidden');
-            document.getElementById('formateur-view').classList.remove('hidden');
-            await loadTiles();
+        // Cette page est réservée au rôle Candidat (son propre profil/stats)
+        // et au Super-Admin (recherche + fiche en lecture seule de n'importe
+        // quel candidat) — voir includes/permissions.php,
+        // qa_has_candidat_tile_access. Les tuiles (voir plus bas dans le
+        // HTML, communes aux deux vues) restent affichées dans tous les cas.
+        const roles = data.roles || [];
+        if (!roles.includes('candidat')) {
+            if (roles.includes('super_admin')) {
+                vm.adminSearchView = true;
+                document.getElementById('candidate-view').classList.add('hidden');
+                document.getElementById('admin-search-view').classList.remove('hidden');
+                await loadTiles();
+                return;
+            }
+            window.location.href = 'dashboard.php';
             return;
         }
 
@@ -590,13 +595,13 @@ document.getElementById('candidats-search-input').addEventListener('input', (e) 
         return;
     }
     resultsBox.classList.remove('hidden');
-    vm.formateurHasSearched = true;
+    vm.adminHasSearched = true;
     candidatsSearchTimer = setTimeout(() => searchCandidats(q), 250);
 });
 
 async function showFiche(id) {
     try {
-        vm.formateurHasSearched = true;
+        vm.adminHasSearched = true;
         const res = await fetch('api/mes_candidats.php?action=fiche&id=' + encodeURIComponent(id));
         if (!res.ok) return;
         const f = await res.json();

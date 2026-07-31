@@ -13,20 +13,23 @@ $role = $_SESSION['role'] ?? 'candidat';
 $roles = qa_user_role_keys($pdo, $userId, $role);
 
 // Réservé aux comptes portant le rôle Formateur (recherche de leurs
-// candidats assignés, voir candidate.php) ou au Super-Admin (vue de
-// dépannage sur l'ensemble des candidats).
-if (!in_array('formateur', $roles, true) && !in_array('super_admin', $roles, true)) {
+// candidats assignés, voir formateur.php), Membre CRA (vue de l'ensemble
+// des candidats de la région) ou Super-Admin (recherche et fiche en
+// lecture seule de n'importe quel candidat, voir candidate.php).
+if (!in_array('formateur', $roles, true) && !in_array('membre_cra', $roles, true) && !in_array('super_admin', $roles, true)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => "Vous n'avez pas les droits nécessaires pour cette action"]);
     exit;
 }
-$isSuperAdmin = in_array('super_admin', $roles, true);
+// Membre CRA et Super-Admin voient l'ensemble des candidats ; un Formateur
+// reste borné à ses seuls candidats assignés (candidat_formateurs).
+$seeAllCandidats = in_array('membre_cra', $roles, true) || in_array('super_admin', $roles, true);
 
 if ($action === 'search') {
     $q = trim($_GET['q'] ?? '');
     $params = [];
-    $where = $isSuperAdmin ? '1=1' : 'id IN (SELECT candidat_id FROM candidat_formateurs WHERE formateur_id = ?)';
-    if (!$isSuperAdmin) $params[] = $userId;
+    $where = $seeAllCandidats ? '1=1' : 'id IN (SELECT candidat_id FROM candidat_formateurs WHERE formateur_id = ?)';
+    if (!$seeAllCandidats) $params[] = $userId;
     if ($q !== '') {
         $where .= " AND (username LIKE ? OR nom LIKE ? OR prenom LIKE ? OR club LIKE ?)";
         $like = '%' . $q . '%';
@@ -52,7 +55,7 @@ if ($action === 'fiche') {
     $stmt->execute([$id]);
     $u = $stmt->fetch();
     $assignedFormateurIds = $u ? array_column(qa_user_formateurs($pdo, $u['id']), 'id') : [];
-    if (!$u || (!$isSuperAdmin && !in_array($userId, $assignedFormateurIds, true))) {
+    if (!$u || (!$seeAllCandidats && !in_array($userId, $assignedFormateurIds, true))) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Candidat introuvable']);
         exit;

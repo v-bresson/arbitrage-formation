@@ -158,40 +158,34 @@ function qa_has_any_admin_access($pdo, $userId, $role) {
     return false;
 }
 
-// Tuile « Espace formateur » sur l'accueil : affichée si le compte porte
-// explicitement le rôle Formateur (même cumulé avec Super-Admin — l'accès
-// à Administration ne remplace pas l'espace dédié au suivi de candidats),
-// ou sinon s'il a accès à au moins une section de suivi des candidats
-// (questions/questionnaires/résultats) sans être super_admin (qui a déjà
-// sa propre tuile « Administration », superset dans ce cas).
+// Tuile « Espace formateur » sur l'accueil : réservée aux rôles Formateur,
+// Membre CRA et Super-Admin. La vue des candidats y est ensuite bornée par
+// rôle (voir api/mes_candidats.php) : un Formateur ne voit que ses propres
+// candidats assignés, un Membre CRA ou un Super-Admin voient l'ensemble des
+// candidats.
 function qa_has_formateur_access($pdo, $userId, $role) {
     $roles = qa_user_role_keys($pdo, $userId, $role);
-    if (in_array('formateur', $roles, true)) return true;
-    if (in_array('super_admin', $roles, true)) return false;
-    $perms = qa_effective_permissions($pdo, $userId, $role);
-    foreach (['questions', 'quizzes', 'attempts'] as $section) {
-        if (($perms[$section] ?? 'none') !== 'none') return true;
-    }
-    return false;
+    return in_array('formateur', $roles, true)
+        || in_array('membre_cra', $roles, true)
+        || in_array('super_admin', $roles, true);
 }
 
-// Tuile « Administration » sur l'accueil : gestion des comptes ou
-// maintenance système (super_admin toujours inclus).
+// Tuile « Administration » sur l'accueil : réservée aux rôles Membre CRA et
+// Super-Admin, indépendamment des surcharges de permissions par section —
+// ce n'est pas un espace ouvrable par simple attribution d'un droit
+// "users"/"maintenance" à un autre rôle.
 function qa_has_pure_admin_access($pdo, $userId, $role) {
-    if (in_array('super_admin', qa_user_role_keys($pdo, $userId, $role), true)) return true;
-    $perms = qa_effective_permissions($pdo, $userId, $role);
-    foreach (['users', 'maintenance'] as $section) {
-        if (($perms[$section] ?? 'none') !== 'none') return true;
-    }
-    return false;
+    $roles = qa_user_role_keys($pdo, $userId, $role);
+    return in_array('membre_cra', $roles, true) || in_array('super_admin', $roles, true);
 }
 
-// Vrai si ce compte porte le rôle Formateur (utilisé pour la page Espace
-// candidat : un compte Formateur y voit la recherche de ses candidats
-// assignés à la place de son propre contenu candidat, même s'il est aussi
-// candidat — choix exclusif).
-function qa_has_formateur_role($pdo, $userId, $role) {
-    return in_array('formateur', qa_user_role_keys($pdo, $userId, $role), true);
+// Tuile « Espace candidat » sur l'accueil : réservée aux comptes portant le
+// rôle Candidat (leur propre profil/stats) et au Super-Admin (recherche et
+// fiche en lecture seule de n'importe quel candidat, voir candidate.php).
+// Ni Formateur ni Membre CRA n'y ont accès.
+function qa_has_candidat_tile_access($pdo, $userId, $role) {
+    $roles = qa_user_role_keys($pdo, $userId, $role);
+    return in_array('candidat', $roles, true) || in_array('super_admin', $roles, true);
 }
 
 // Garde d'accès pour les endpoints API admin, section par section — à la
