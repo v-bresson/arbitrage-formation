@@ -83,6 +83,7 @@ a { color: var(--accent); }
 
 .page {
     width: 100%;
+    min-width: 0;
     max-width: 480px;
     margin: 0 auto;
     text-align: center;
@@ -309,6 +310,7 @@ body.has-fixed-header { padding-top: 0; }
     .admin-sidebar { width: 100%; position: static; flex-direction: row; flex-wrap: wrap; }
     .sidebar-group { flex: 1 1 auto; }
     .sidebar-submenu { padding-left: 0; }
+    .admin-content { width: 100%; }
 }
 
 /* ---------- Cards / grid ---------- */
@@ -347,7 +349,10 @@ body.has-fixed-header { padding-top: 0; }
 
 /* ---------- Rôles : grille des cartes (2 colonnes fixes) ---------- */
 .roles-grid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
-@media (max-width: 700px) {
+@media (max-width: 850px) {
+    /* Le seuil est plus haut que .admin-layout (800px) : entre les deux, la
+       barre latérale (220px + espacement) est encore côte à côte avec le
+       contenu, qui n'a alors plus assez de place pour 2 colonnes de 280px. */
     .roles-grid { grid-template-columns: 1fr; }
 }
 
