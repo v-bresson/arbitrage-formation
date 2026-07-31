@@ -33,8 +33,6 @@
 
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
-    <div class="grid" id="links-grid" style="margin-bottom:24px;"></div>
-
     <div class="grid" id="tiles-grid"></div>
 </div>
 
@@ -43,9 +41,7 @@
 <script src="assets/mvvm.js"></script>
 <script>
 const ICONS = {
-    clipboard: '<rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
     trophy: '<path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3a2 2 0 0 1 0 4h-1"/><path d="M7 5H4a2 2 0 0 0 0 4h1"/>',
-    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
 };
@@ -74,20 +70,6 @@ function bind() {
         <div class="card"><p style="color:var(--text-secondary);">Candidats Arbitre Fédéral</p><h2 style="font-size:2rem;">${s.candidats_federal}</h2></div>
         <div class="card"><p style="color:var(--text-secondary);">Candidats Arbitre Duel</p><h2 style="font-size:2rem;">${s.candidats_duel}</h2></div>
     `;
-
-    const links = [];
-    if (canRead('questions')) links.push({ nom: 'Banque de questions', description: 'Consulter ou gérer les questions.', tab: 'questions', icone: 'clipboard' });
-    if (canRead('quizzes')) links.push({ nom: 'QCM Examen', description: 'Consulter ou gérer les QCM Examen.', tab: 'quizzes', icone: 'target' });
-
-    document.getElementById('links-grid').innerHTML = links.map(l => `
-        <a class="card" href="admin/index.php?tab=${escapeHtml(l.tab)}" style="text-decoration:none;align-items:center;text-align:center;">
-            <div class="icon-wrap" style="width:48px;height:48px;border-radius:12px;background:rgba(91,141,239,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:6px;">
-                <svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;">${ICONS[l.icone]}</svg>
-            </div>
-            <h2>${escapeHtml(l.nom)}</h2>
-            <p>${escapeHtml(l.description)}</p>
-        </a>
-    `).join('');
 
     const tiles = [];
     if (canRead('attempts')) {
