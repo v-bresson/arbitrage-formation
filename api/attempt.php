@@ -259,6 +259,10 @@ if ($action === 'start') {
                 'started_at' => $enCours['started_at'],
                 'duree_minutes' => $enCours['duree_minutes'] !== null ? (int)$enCours['duree_minutes'] : null,
                 'questions' => array_map('qa_question_public', $questions),
+                // Réponses déjà saisies avant une fermeture de fenêtre / un
+                // rechargement : reprises telles quelles côté client pour ne
+                // pas les faire disparaître (voir action=save_progress).
+                'reponses' => json_decode($enCours['reponses_json'] ?? 'null', true) ?: new stdClass(),
             ]);
             exit;
         }
@@ -331,6 +335,29 @@ if ($action === 'start') {
         'duree_minutes' => $quiz['duree_minutes'] !== null ? (int)$quiz['duree_minutes'] : null,
         'questions' => array_map('qa_question_public', $questionsSnapshot),
     ]);
+    exit;
+}
+
+// Sauvegarde périodique des réponses en cours de saisie (avant l'envoi
+// définitif) : sans ça, fermer l'onglet pendant l'examen fait perdre les
+// réponses (seul le minuteur, calculé depuis started_at, survit).
+if ($action === 'save_progress') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $tentativeId = (int)($body['tentative_id'] ?? 0);
+    $reponses = is_array($body['reponses'] ?? null) ? $body['reponses'] : [];
+    $candidat = $_SESSION['username'];
+
+    $stmt = $pdo->prepare("SELECT id FROM tentatives WHERE id=? AND candidat=? AND statut='en_cours'");
+    $stmt->execute([$tentativeId, $candidat]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Tentative introuvable ou déjà terminée']);
+        exit;
+    }
+
+    $stmt = $pdo->prepare('UPDATE tentatives SET reponses_json=? WHERE id=?');
+    $stmt->execute([json_encode($reponses), $tentativeId]);
+    echo json_encode(['success' => true]);
     exit;
 }
 

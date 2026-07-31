@@ -866,57 +866,75 @@ function formatDuration(seconds) {
 }
 
 // ---------- Rendu : tableau des résultats ----------
+// Deux sections : « à corriger » (résultat pas encore publié au candidat,
+// tentatives en cours incluses) et « déjà corrigés » (résultat publié).
+function renderAttemptRow(a, canManageAttempts) {
+    let noteCell = '—';
+    let resultCell = '—';
+    if (a.score !== null) {
+        noteCell = `${a.score} / ${a.note_max}`;
+        if (!a.resultat_publie) {
+            resultCell = '<span class="pill warn">Non publié</span>';
+        } else if (!a.afficher_score) {
+            resultCell = '<span class="pill">Masqué au candidat</span>';
+        } else {
+            resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
+        }
+    } else if (a.a_des_questions_ouvertes && a.statut !== 'en_cours') {
+        resultCell = '<span class="pill warn">À corriger</span>';
+    }
+    const actions = [];
+    if (canManageAttempts && a.statut !== 'en_cours') {
+        actions.push(`<button type="button" class="secondary grade-attempt-btn" data-id="${a.id}">Relecture / correction</button>`);
+    }
+    if (canManageAttempts) {
+        actions.push(`<button type="button" class="danger delete-attempt-btn" data-id="${a.id}">Supprimer</button>`);
+    }
+    return `
+    <tr>
+        <td>${escapeHtml(a.quiz_nom)}</td>
+        <td>${escapeHtml(a.candidat)}</td>
+        <td>${STATUT_LABELS[a.statut] || a.statut}</td>
+        <td>${noteCell}</td>
+        <td>${resultCell}</td>
+        <td>${escapeHtml(a.started_at)}</td>
+        <td>${formatDuration(a.duree_secondes)}</td>
+        <td class="row-actions">${actions.join('')}</td>
+    </tr>
+`;
+}
+
 qaWatchEffect(() => {
-    const tbody = document.getElementById('attempts-tbody');
+    const todoBody = document.getElementById('attempts-todo-tbody');
+    const doneBody = document.getElementById('attempts-done-tbody');
     if (vm.msg.attempts) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
+        todoBody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
+        doneBody.innerHTML = '';
         return;
     }
     if (!vm.attempts.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+        todoBody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+        doneBody.innerHTML = '';
         return;
     }
 
     const canManageAttempts = canManage('attempts');
+    // Une tentative encore en cours n'a pas de résultat "publié" au sens
+    // utile du terme (la colonne vaut 1 par défaut tant que la correction
+    // finale n'a pas eu lieu) : elle reste dans "à corriger" tant qu'elle
+    // n'est pas terminée et son résultat effectivement publié.
+    const todo = vm.attempts.filter(a => a.statut === 'en_cours' || !a.resultat_publie);
+    const done = vm.attempts.filter(a => a.statut !== 'en_cours' && a.resultat_publie);
 
-    tbody.innerHTML = vm.attempts.map(a => {
-        let noteCell = '—';
-        let resultCell = '—';
-        if (a.score !== null) {
-            noteCell = `${a.score} / ${a.note_max}`;
-            if (!a.resultat_publie) {
-                resultCell = '<span class="pill warn">Non publié</span>';
-            } else if (!a.afficher_score) {
-                resultCell = '<span class="pill">Masqué au candidat</span>';
-            } else {
-                resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
-            }
-        } else if (a.a_des_questions_ouvertes && a.statut !== 'en_cours') {
-            resultCell = '<span class="pill warn">À corriger</span>';
-        }
-        const actions = [];
-        if (canManageAttempts && a.statut !== 'en_cours') {
-            actions.push(`<button type="button" class="secondary grade-attempt-btn" data-id="${a.id}">Relecture / correction</button>`);
-        }
-        if (canManageAttempts) {
-            actions.push(`<button type="button" class="danger delete-attempt-btn" data-id="${a.id}">Supprimer</button>`);
-        }
-        return `
-        <tr>
-            <td>${escapeHtml(a.quiz_nom)}</td>
-            <td>${escapeHtml(a.candidat)}</td>
-            <td>${STATUT_LABELS[a.statut] || a.statut}</td>
-            <td>${noteCell}</td>
-            <td>${resultCell}</td>
-            <td>${escapeHtml(a.started_at)}</td>
-            <td>${formatDuration(a.duree_secondes)}</td>
-            <td class="row-actions">${actions.join('')}</td>
-        </tr>
-    `;
-    }).join('');
+    todoBody.innerHTML = todo.length
+        ? todo.map(a => renderAttemptRow(a, canManageAttempts)).join('')
+        : `<tr><td colspan="8" style="color:var(--text-secondary);">Rien à corriger pour le moment.</td></tr>`;
+    doneBody.innerHTML = done.length
+        ? done.map(a => renderAttemptRow(a, canManageAttempts)).join('')
+        : `<tr><td colspan="8" style="color:var(--text-secondary);">Aucun résultat publié pour le moment.</td></tr>`;
 
-    tbody.querySelectorAll('.grade-attempt-btn').forEach(btn => btn.addEventListener('click', () => openGradeModal(btn.dataset.id)));
-    tbody.querySelectorAll('.delete-attempt-btn').forEach(btn => btn.addEventListener('click', () => deleteAttempt(btn.dataset.id)));
+    document.querySelectorAll('.grade-attempt-btn').forEach(btn => btn.addEventListener('click', () => openGradeModal(btn.dataset.id)));
+    document.querySelectorAll('.delete-attempt-btn').forEach(btn => btn.addEventListener('click', () => deleteAttempt(btn.dataset.id)));
 });
 
 async function deleteAttempt(id) {
@@ -939,25 +957,25 @@ const gradeModal = document.getElementById('grade-modal-overlay');
 let gradeQuestions = [];
 let gradeMeta = null;
 
-const OPTION_LETTERS_GRADE = ['a', 'b', 'c', 'd', 'e', 'f'];
-
-function formatGivenAnswer(q) {
-    if (q.type === 'ouverte') return null; // affiché à part (zone de texte)
+// Affiche toutes les options d'une question à choix (comme lors de la
+// saisie candidat), avec la réponse saisie mise en évidence (accent, ou
+// rouge si fausse) et la bonne réponse signalée en vert — même principe
+// que la relecture avant envoi côté candidat (voir quiz.php renderReview).
+function renderOptionsWithHighlight(q) {
     const options = q.options || {};
-    if (q.type === 'qcm_multiple') {
-        const given = Array.isArray(q.reponse_donnee) ? q.reponse_donnee : [];
-        return given.length ? given.map(l => options[l] || l.toUpperCase()).join(', ') : 'Sans réponse';
-    }
-    const l = q.reponse_donnee;
-    return l ? (options[l] || l.toUpperCase()) : 'Sans réponse';
-}
-
-function formatCorrectAnswer(q) {
-    const options = q.options || {};
-    if (q.type === 'qcm_multiple') {
-        return (q.bonne_reponse || '').split(',').filter(Boolean).map(l => options[l] || l.toUpperCase()).join(', ');
-    }
-    return options[q.bonne_reponse] || (q.bonne_reponse || '').toUpperCase();
+    const given = q.type === 'qcm_multiple'
+        ? (Array.isArray(q.reponse_donnee) ? q.reponse_donnee : [])
+        : (q.reponse_donnee ? [q.reponse_donnee] : []);
+    const correct = (q.bonne_reponse || '').split(',').filter(Boolean);
+    return Object.entries(options).filter(([, text]) => text).map(([key, text]) => {
+        const isGiven = given.includes(key);
+        const isCorrect = correct.includes(key);
+        const classes = ['option-label'];
+        if (isGiven) classes.push('selected');
+        if (isCorrect) classes.push('correct');
+        if (isGiven && !isCorrect) classes.push('incorrect');
+        return `<div class="${classes.join(' ')}" style="cursor:default;"><span>${escapeHtml(text)}</span></div>`;
+    }).join('');
 }
 
 function updateGradeTotal() {
@@ -1005,9 +1023,9 @@ async function openGradeModal(id) {
             }
             return `
             <div class="panel" style="gap:8px;">
-                <p style="font-weight:600;">${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span></p>
-                <p style="color:var(--text-secondary);font-size:0.9rem;">Réponse du candidat : <strong>${escapeHtml(formatGivenAnswer(q))}</strong></p>
-                <p style="color:var(--text-secondary);font-size:0.9rem;">Bonne réponse : <strong>${escapeHtml(formatCorrectAnswer(q))}</strong></p>
+                <p style="font-weight:600;">${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span>${q.type === 'qcm_multiple' ? '<span class="pill warn">Réponses multiples</span>' : ''}</p>
+                ${renderOptionsWithHighlight(q)}
+                <p style="color:var(--text-secondary);font-size:0.85rem;">Réponse saisie en <span style="color:var(--accent);">bleu</span>, bonne réponse en <span style="color:var(--success);">vert</span>.</p>
                 <div class="field" style="max-width:160px;"><label>Points (sur ${q.points_max})</label><input type="number" class="grade-points-input" data-max="${q.points_max}" min="0" max="${q.points_max}" step="0.5" value="${q.points_attribues}"></div>
             </div>`;
         }).join('');

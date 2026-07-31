@@ -110,11 +110,20 @@
 
             <!-- ---------- QCM EXAMEN > RESULTATS ---------- -->
             <div id="tab-attempts" class="tab-panel hidden">
-                <h2 style="margin-bottom:16px;">Résultats</h2>
+                <h2 style="margin-bottom:8px;">À corriger</h2>
+                <p style="color:var(--text-secondary);margin-bottom:16px;">Tentatives terminées dont le résultat n'a pas encore été publié au candidat.</p>
+                <div class="table-wrap panel" style="padding:0;margin-bottom:32px;">
+                    <table>
+                        <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Temps</th><th></th></tr></thead>
+                        <tbody id="attempts-todo-tbody"></tbody>
+                    </table>
+                </div>
+
+                <h2 style="margin-bottom:16px;">Déjà corrigés</h2>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
                         <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Temps</th><th></th></tr></thead>
-                        <tbody id="attempts-tbody"></tbody>
+                        <tbody id="attempts-done-tbody"></tbody>
                     </table>
                 </div>
             </div>

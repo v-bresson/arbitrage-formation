@@ -90,7 +90,7 @@ a { color: var(--accent); }
     animation: fadeUp 0.6s ease;
 }
 
-.page.wide { max-width: 1100px; }
+.page.wide { max-width: 1400px; }
 
 
 .panel {
@@ -476,6 +476,13 @@ tr:hover td { background: var(--bg-card-hover); }
 .option-label input { width: auto; }
 .option-label.selected { border-color: var(--accent); background: rgba(91, 141, 239, 0.08); }
 
+/* Relecture (avant envoi côté candidat) et correction (formateur) : la
+   réponse saisie reste en surbrillance accent ; en correction, la bonne
+   réponse est en plus signalée en vert, et une réponse saisie mais fausse
+   en rouge. */
+.option-label.correct { border-color: var(--success); background: rgba(76, 175, 125, 0.1); }
+.option-label.selected.incorrect { border-color: var(--danger); background: rgba(224, 84, 90, 0.1); }
+
 .progress-bar {
     width: 100%;
     height: 6px;
@@ -485,6 +492,19 @@ tr:hover td { background: var(--bg-card-hover); }
     margin-bottom: 24px;
 }
 .progress-bar .fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+
+/* Reste visible en descendant la page pendant le passage d'un QCM Examen :
+   le minuteur et l'avancement doivent rester consultables sans remonter.
+   Le décalage top est calculé en JS (voir quiz.php) car la hauteur du
+   bandeau fixe varie avec la largeur d'écran / longueur du nom d'utilisateur. */
+.quiz-progress-sticky {
+    position: sticky;
+    z-index: 150;
+    background: var(--bg-dark);
+    padding-top: 10px;
+}
+.quiz-progress-sticky .timer-bar { margin-bottom: 10px; }
+.quiz-progress-sticky .progress-bar { margin-bottom: 14px; }
 
 .result-score {
     font-size: 3rem;

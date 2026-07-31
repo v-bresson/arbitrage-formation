@@ -45,11 +45,13 @@
 
 <!-- ================= ECRAN QUESTIONNAIRE ================= -->
 <div id="quiz-screen" class="page wide hidden">
-    <div id="timer-bar" class="timer-bar hidden">
-        <span id="timer-label">Temps restant</span>
-        <span id="timer-value">--:--</span>
+    <div id="quiz-progress-sticky" class="quiz-progress-sticky">
+        <div id="timer-bar" class="timer-bar hidden">
+            <span id="timer-label">Temps restant</span>
+            <span id="timer-value">--:--</span>
+        </div>
+        <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
     </div>
-    <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
     <div id="questions-container"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
         <button type="button" id="submit-quiz-btn">Valider mes réponses</button>
@@ -205,6 +207,17 @@ let tentativeId = null;
 let timerInterval = null;
 let deadlineTs = null;
 
+// Cale le minuteur/l'avancement, sticky, juste sous le bandeau fixe + le
+// fil d'ariane : header-fix.js mesure déjà leur hauteur réelle dans
+// .header-spacer, on la réutilise pour ne pas dupliquer le calcul.
+function syncStickyProgress() {
+    const spacer = document.querySelector('.header-spacer');
+    const sticky = document.getElementById('quiz-progress-sticky');
+    if (!spacer || !sticky) return;
+    sticky.style.top = spacer.style.height || '0px';
+}
+window.addEventListener('resize', syncStickyProgress);
+
 async function checkAuth() {
     try {
         const res = await fetch('api/auth.php', {
@@ -265,10 +278,16 @@ document.getElementById('start-btn').addEventListener('click', async () => {
         if (data.success) {
             currentQuestions = data.questions;
             tentativeId = data.tentative_id;
-            answers = {};
+            // En cas de reprise d'une tentative en cours, les réponses déjà
+            // saisies avant une fermeture de fenêtre sont restaurées (voir
+            // api/attempt.php, action=save_progress).
+            answers = data.reponses && typeof data.reponses === 'object' ? { ...data.reponses } : {};
             renderQuestions();
             setupTimer(data.started_at, data.duree_minutes);
+            syncStickyProgress();
             vm.screen = 'quiz';
+            if (progressIntervalId) clearInterval(progressIntervalId);
+            progressIntervalId = setInterval(() => saveProgressNow(false), 20000);
         } else {
             vm.startError = data.message || 'Impossible de démarrer le QCM Examen';
         }
@@ -315,6 +334,38 @@ function setupTimer(startedAt, dureeMinutes) {
     timerInterval = setInterval(tick, 1000);
 }
 
+// ---------- Sauvegarde périodique des réponses en cours ----------
+// Sans ça, fermer la fenêtre pendant l'examen fait perdre les réponses
+// déjà saisies (seul le minuteur, recalculé depuis started_at, survit).
+let saveProgressTimer = null;
+let progressIntervalId = null;
+
+function saveProgressNow(useBeacon) {
+    if (!tentativeId) return;
+    const payload = JSON.stringify({ tentative_id: tentativeId, reponses: answers });
+    if (useBeacon && navigator.sendBeacon) {
+        navigator.sendBeacon('api/attempt.php?action=save_progress', new Blob([payload], { type: 'application/json' }));
+        return;
+    }
+    fetch('api/attempt.php?action=save_progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+    }).catch(() => { /* pas bloquant : retentera au prochain changement */ });
+}
+
+function scheduleSaveProgress() {
+    clearTimeout(saveProgressTimer);
+    saveProgressTimer = setTimeout(() => saveProgressNow(false), 1200);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && vm.screen === 'quiz') saveProgressNow(true);
+});
+window.addEventListener('pagehide', () => {
+    if (vm.screen === 'quiz') saveProgressNow(true);
+});
+
 function updateProgress() {
     const answered = Object.keys(answers).length;
     const pct = currentQuestions.length ? (answered / currentQuestions.length) * 100 : 0;
@@ -356,8 +407,15 @@ function renderQuestions() {
 
     container.querySelectorAll('.option-label[data-key]').forEach(label => {
         const input = label.querySelector('input');
+        const qid = label.dataset.qid;
+        const given = answers[qid];
+        // Reprise d'une tentative en cours : pré-coche les options déjà
+        // enregistrées (voir action=start / save_progress).
+        if (input.type === 'radio' ? given === label.dataset.key : Array.isArray(given) && given.includes(label.dataset.key)) {
+            input.checked = true;
+            label.classList.add('selected');
+        }
         input.addEventListener('change', () => {
-            const qid = label.dataset.qid;
             if (input.type === 'radio') {
                 answers[qid] = input.value;
                 container.querySelectorAll(`.option-label[data-qid="${qid}"]`).forEach(l => l.classList.remove('selected'));
@@ -368,15 +426,18 @@ function renderQuestions() {
                 label.classList.toggle('selected', input.checked);
             }
             updateProgress();
+            scheduleSaveProgress();
         });
     });
 
     container.querySelectorAll('.open-answer').forEach(textarea => {
+        const qid = textarea.dataset.qid;
+        if (typeof answers[qid] === 'string') textarea.value = answers[qid];
         textarea.addEventListener('input', () => {
-            const qid = textarea.dataset.qid;
             if (textarea.value.trim() !== '') answers[qid] = textarea.value;
             else delete answers[qid];
             updateProgress();
+            scheduleSaveProgress();
         });
     });
 
@@ -384,28 +445,39 @@ function renderQuestions() {
 }
 
 // Aperçu en lecture seule des réponses avant l'envoi définitif (voir
-// écran #review-screen) : reprend le libellé des options choisies, ou
-// le texte saisi pour une question ouverte.
+// écran #review-screen) : montre toutes les options de chaque question
+// (comme lors de la saisie) avec la ou les réponses saisies mises en
+// évidence, pour que la relecture ne masque rien.
 function renderReview() {
     const container = document.getElementById('review-container');
     container.innerHTML = currentQuestions.map((q, i) => {
-        let answerHtml;
+        const image = q.image ? `<img src="${escapeHtml(q.image)}" alt="" class="question-image">` : '';
+        let body;
+        let unanswered = false;
+
         if (q.type === 'ouverte') {
             const val = answers[q.id];
-            answerHtml = val ? `<p style="white-space:pre-wrap;">${escapeHtml(val)}</p>` : '<p style="color:var(--text-secondary);">Sans réponse</p>';
-        } else if (q.type === 'qcm_multiple') {
-            const given = Array.isArray(answers[q.id]) ? answers[q.id] : [];
-            answerHtml = given.length
-                ? `<p>${given.map(k => escapeHtml(q.options[k] || k)).join(', ')}</p>`
+            unanswered = !val;
+            body = val
+                ? `<div class="option-label selected" style="cursor:default;"><span style="white-space:pre-wrap;">${escapeHtml(val)}</span></div>`
                 : '<p style="color:var(--text-secondary);">Sans réponse</p>';
         } else {
-            const key = answers[q.id];
-            answerHtml = key ? `<p>${escapeHtml(q.options[key] || key)}</p>` : '<p style="color:var(--text-secondary);">Sans réponse</p>';
+            const given = q.type === 'qcm_multiple'
+                ? (Array.isArray(answers[q.id]) ? answers[q.id] : [])
+                : (answers[q.id] ? [answers[q.id]] : []);
+            unanswered = given.length === 0;
+            body = Object.entries(q.options).map(([key, text]) => `
+                <div class="option-label${given.includes(key) ? ' selected' : ''}" style="cursor:default;">
+                    <span>${escapeHtml(text)}</span>
+                </div>
+            `).join('');
         }
+
         return `
         <div class="question-block">
-            <h3>${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span></h3>
-            ${answerHtml}
+            <h3>${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span>${q.type === 'qcm_multiple' ? '<span class="pill warn">Réponses multiples</span>' : ''}${unanswered ? '<span class="pill warn">Sans réponse</span>' : ''}</h3>
+            ${image}
+            ${body}
         </div>`;
     }).join('');
 }
@@ -413,6 +485,7 @@ function renderReview() {
 document.getElementById('submit-quiz-btn').addEventListener('click', () => {
     renderReview();
     vm.screen = 'review';
+    window.scrollTo({ top: 0, behavior: 'auto' });
 });
 document.getElementById('review-back-btn').addEventListener('click', () => { vm.screen = 'quiz'; });
 document.getElementById('review-confirm-btn').addEventListener('click', () => submitQuiz(false, true));
@@ -426,6 +499,8 @@ async function submitQuiz(auto, fromReview) {
     }
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    if (progressIntervalId) { clearInterval(progressIntervalId); progressIntervalId = null; }
+    clearTimeout(saveProgressTimer);
 
     const btn = fromReview ? document.getElementById('review-confirm-btn') : document.getElementById('submit-quiz-btn');
     btn.disabled = true;
