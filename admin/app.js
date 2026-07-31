@@ -201,6 +201,11 @@ document.querySelectorAll('.sidebar-link[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => selectSidebarTab(btn.dataset.tab));
 });
 
+document.getElementById('admin-breadcrumb-root').addEventListener('click', (e) => {
+    e.preventDefault();
+    selectSidebarTab('overview');
+});
+
 document.querySelectorAll('.sidebar-group-toggle').forEach(toggle => {
     toggle.addEventListener('click', () => toggle.closest('.sidebar-group').classList.toggle('open'));
 });

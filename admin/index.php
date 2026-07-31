@@ -28,7 +28,7 @@
             </div>
         </div>
     </header>
-    <nav class="breadcrumb"><div class="breadcrumb-row"><a href="../dashboard.php">Accueil</a><span class="sep">/</span><span class="current" id="admin-breadcrumb-current">Administration</span></div></nav>
+    <nav class="breadcrumb"><div class="breadcrumb-row"><a href="../dashboard.php">Accueil</a><span class="sep">/</span><a href="#" id="admin-breadcrumb-root">Administration</a><span class="sep">/</span><span class="current" id="admin-breadcrumb-current">Dashboard</span></div></nav>
     <div class="header-spacer"></div>
     <script src="../assets/header-fix.js"></script>
 
