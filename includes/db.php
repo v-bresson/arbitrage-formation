@@ -141,6 +141,13 @@ function qa_schema_migrations() {
                 ['table' => 'quizzes', 'column' => 'questions_manuelles', 'definition' => 'TEXT NULL'],
             ],
         ],
+        [
+            'id' => 'tentatives_correction_2026_07',
+            'description' => "Ajout de la correction manuelle et de la publication des résultats des tentatives",
+            'columns' => [
+                ['table' => 'tentatives', 'column' => 'resultat_publie', 'definition' => 'TINYINT(1) NOT NULL DEFAULT 1'],
+            ],
+        ],
     ];
 }
 
@@ -316,6 +323,7 @@ function get_db() {
         duree_minutes INT NULL,
         reussi TINYINT(1) NULL,
         afficher_score TINYINT(1) NOT NULL DEFAULT 1,
+        resultat_publie TINYINT(1) NOT NULL DEFAULT 1,
         started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         completed_at DATETIME NULL,
         details LONGTEXT NULL,

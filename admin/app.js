@@ -851,26 +851,55 @@ async function loadAttempts() {
     }
 }
 
+// Formate une durée en secondes en "1h 05min 12s" (unités nulles omises).
+function formatDuration(seconds) {
+    if (seconds === null || seconds === undefined) return '—';
+    if (seconds < 0) seconds = 0;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const parts = [];
+    if (h) parts.push(`${h}h`);
+    if (h || m) parts.push(`${m}min`);
+    parts.push(`${s}s`);
+    return parts.join(' ');
+}
+
 // ---------- Rendu : tableau des résultats ----------
 qaWatchEffect(() => {
     const tbody = document.getElementById('attempts-tbody');
     if (vm.msg.attempts) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${escapeHtml(vm.msg.attempts)}</td></tr>`;
         return;
     }
     if (!vm.attempts.length) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-secondary);">Aucune tentative enregistrée pour le moment.</td></tr>`;
         return;
     }
+
+    const canManageAttempts = canManage('attempts');
 
     tbody.innerHTML = vm.attempts.map(a => {
         let noteCell = '—';
         let resultCell = '—';
-        if (!a.afficher_score) {
-            noteCell = '<span class="pill">Masqué au candidat</span>';
-        } else if (a.score !== null) {
+        if (a.score !== null) {
             noteCell = `${a.score} / ${a.note_max}`;
-            resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
+            if (!a.resultat_publie) {
+                resultCell = '<span class="pill warn">Non publié</span>';
+            } else if (!a.afficher_score) {
+                resultCell = '<span class="pill">Masqué au candidat</span>';
+            } else {
+                resultCell = a.reussi ? '<span class="pill ok">Réussi</span>' : '<span class="pill warn">Non validé</span>';
+            }
+        } else if (a.a_des_questions_ouvertes && a.statut !== 'en_cours') {
+            resultCell = '<span class="pill warn">À corriger</span>';
+        }
+        const actions = [];
+        if (canManageAttempts && a.statut !== 'en_cours') {
+            actions.push(`<button type="button" class="secondary grade-attempt-btn" data-id="${a.id}">Relecture / correction</button>`);
+        }
+        if (canManageAttempts) {
+            actions.push(`<button type="button" class="danger delete-attempt-btn" data-id="${a.id}">Supprimer</button>`);
         }
         return `
         <tr>
@@ -880,10 +909,151 @@ qaWatchEffect(() => {
             <td>${noteCell}</td>
             <td>${resultCell}</td>
             <td>${escapeHtml(a.started_at)}</td>
-            <td>${escapeHtml(a.completed_at || '—')}</td>
+            <td>${formatDuration(a.duree_secondes)}</td>
+            <td class="row-actions">${actions.join('')}</td>
         </tr>
     `;
     }).join('');
+
+    tbody.querySelectorAll('.grade-attempt-btn').forEach(btn => btn.addEventListener('click', () => openGradeModal(btn.dataset.id)));
+    tbody.querySelectorAll('.delete-attempt-btn').forEach(btn => btn.addEventListener('click', () => deleteAttempt(btn.dataset.id)));
+});
+
+async function deleteAttempt(id) {
+    if (!confirm('Supprimer définitivement cette tentative ?')) return;
+    try {
+        const res = await fetch('../api/quizzes.php?action=delete_attempt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (data.success) await loadAttempts();
+    } catch (err) {
+        vm.msg.attempts = 'Erreur de connexion au serveur';
+    }
+}
+
+// ---------- Relecture / correction d'une tentative ----------
+const gradeModal = document.getElementById('grade-modal-overlay');
+let gradeQuestions = [];
+let gradeMeta = null;
+
+const OPTION_LETTERS_GRADE = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+function formatGivenAnswer(q) {
+    if (q.type === 'ouverte') return null; // affiché à part (zone de texte)
+    const options = q.options || {};
+    if (q.type === 'qcm_multiple') {
+        const given = Array.isArray(q.reponse_donnee) ? q.reponse_donnee : [];
+        return given.length ? given.map(l => options[l] || l.toUpperCase()).join(', ') : 'Sans réponse';
+    }
+    const l = q.reponse_donnee;
+    return l ? (options[l] || l.toUpperCase()) : 'Sans réponse';
+}
+
+function formatCorrectAnswer(q) {
+    const options = q.options || {};
+    if (q.type === 'qcm_multiple') {
+        return (q.bonne_reponse || '').split(',').filter(Boolean).map(l => options[l] || l.toUpperCase()).join(', ');
+    }
+    return options[q.bonne_reponse] || (q.bonne_reponse || '').toUpperCase();
+}
+
+function updateGradeTotal() {
+    let earned = 0;
+    let total = 0;
+    document.querySelectorAll('.grade-points-input').forEach(input => {
+        const max = parseFloat(input.dataset.max) || 0;
+        let val = parseFloat(input.value);
+        if (isNaN(val)) val = 0;
+        if (val > max) val = max;
+        if (val < 0) val = 0;
+        earned += val;
+        total += max;
+    });
+    const note = total > 0 ? Math.round((earned / total) * gradeMeta.note_max * 100) / 100 : 0;
+    const reussi = note >= gradeMeta.seuil_reussite;
+    const totalEl = document.getElementById('grade-total');
+    totalEl.textContent = `${note} / ${gradeMeta.note_max} — ${reussi ? 'Réussi' : 'Non validé'}`;
+    totalEl.style.color = reussi ? 'var(--success)' : 'var(--danger)';
+}
+
+async function openGradeModal(id) {
+    const msgEl = document.getElementById('grade-modal-msg');
+    msgEl.textContent = '';
+    try {
+        const res = await fetch('../api/quizzes.php?action=attempt_detail&id=' + encodeURIComponent(id));
+        if (!res.ok) return;
+        const t = await res.json();
+        gradeMeta = t;
+        gradeQuestions = t.questions;
+
+        document.getElementById('grade-modal-title').textContent = `Relecture — ${t.quiz_nom}`;
+        document.getElementById('grade-modal-meta').textContent = `Candidat : ${t.candidat} — Débuté le ${t.started_at}${t.completed_at ? ', terminé le ' + t.completed_at : ''}`;
+        document.getElementById('grade-publier').checked = t.resultat_publie;
+
+        const list = document.getElementById('grade-questions-list');
+        list.innerHTML = t.questions.map((q, i) => {
+            if (q.type === 'ouverte') {
+                return `
+                <div class="panel" style="gap:8px;">
+                    <p style="font-weight:600;">${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span></p>
+                    <div class="field"><label>Réponse du candidat</label><textarea rows="3" disabled>${escapeHtml(q.reponse_donnee || '')}</textarea></div>
+                    <div class="field" style="max-width:160px;"><label>Points (sur ${q.points_max})</label><input type="number" class="grade-points-input" data-max="${q.points_max}" min="0" max="${q.points_max}" step="0.5" value="${q.points_attribues}"></div>
+                </div>`;
+            }
+            return `
+            <div class="panel" style="gap:8px;">
+                <p style="font-weight:600;">${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span></p>
+                <p style="color:var(--text-secondary);font-size:0.9rem;">Réponse du candidat : <strong>${escapeHtml(formatGivenAnswer(q))}</strong></p>
+                <p style="color:var(--text-secondary);font-size:0.9rem;">Bonne réponse : <strong>${escapeHtml(formatCorrectAnswer(q))}</strong></p>
+                <div class="field" style="max-width:160px;"><label>Points (sur ${q.points_max})</label><input type="number" class="grade-points-input" data-max="${q.points_max}" min="0" max="${q.points_max}" step="0.5" value="${q.points_attribues}"></div>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.grade-points-input').forEach(input => input.addEventListener('input', updateGradeTotal));
+        updateGradeTotal();
+        gradeModal.classList.remove('hidden');
+    } catch (err) {
+        vm.msg.attempts = 'Erreur de chargement de la tentative';
+    }
+}
+
+document.getElementById('grade-cancel-btn').addEventListener('click', () => gradeModal.classList.add('hidden'));
+gradeModal.addEventListener('click', e => { if (e.target === gradeModal) gradeModal.classList.add('hidden'); });
+
+document.getElementById('grade-save-btn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('grade-modal-msg');
+    msgEl.textContent = '';
+    const saveBtn = document.getElementById('grade-save-btn');
+    saveBtn.disabled = true;
+
+    const inputs = document.querySelectorAll('.grade-points-input');
+    const payload = {
+        id: gradeMeta.id,
+        corrections: gradeQuestions.map((q, i) => ({ question_id: q.id, points: parseFloat(inputs[i].value) || 0 })),
+        publier: document.getElementById('grade-publier').checked,
+    };
+
+    try {
+        const res = await fetch('../api/quizzes.php?action=grade_attempt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+            gradeModal.classList.add('hidden');
+            await loadAttempts();
+        } else {
+            msgEl.textContent = data.message || "Erreur lors de l'enregistrement";
+        }
+    } catch (err) {
+        msgEl.textContent = 'Erreur de connexion au serveur';
+    } finally {
+        saveBtn.disabled = false;
+    }
 });
 
 // ================= UTILISATEURS =================

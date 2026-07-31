@@ -57,6 +57,17 @@
     <p class="msg error" id="quiz-error"></p>
 </div>
 
+<!-- ================= ECRAN RELECTURE AVANT ENVOI ================= -->
+<div id="review-screen" class="page wide hidden">
+    <h2 style="margin-bottom:6px;">Relecture avant envoi</h2>
+    <p style="color:var(--text-secondary);margin-bottom:16px;">Vérifiez vos réponses avant l'envoi définitif. Vous pourrez encore les modifier après.</p>
+    <div id="review-container"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+        <button type="button" class="secondary" id="review-back-btn">Modifier mes réponses</button>
+        <button type="button" id="review-confirm-btn">Confirmer l'envoi</button>
+    </div>
+</div>
+
 <!-- ================= ECRAN RESULTAT ================= -->
 <div id="result-screen" class="page hidden">
     <div class="panel" style="text-align:center;align-items:center;">
@@ -92,7 +103,7 @@ function escapeHtml(str) {
 // complet à chaque réponse cochée ou chaque tic du minuteur casserait le
 // focus des champs et la sélection en cours.
 const vm = qaReactive({
-    screen: 'list', // 'list' | 'start' | 'quiz' | 'result'
+    screen: 'list', // 'list' | 'start' | 'quiz' | 'review' | 'result'
     quizzes: null, // null = pas encore chargé
     listMsg: '',
     currentQuiz: null,
@@ -105,18 +116,27 @@ function bind() {
     document.getElementById('list-screen').classList.toggle('hidden', vm.screen !== 'list');
     document.getElementById('start-screen').classList.toggle('hidden', vm.screen !== 'start');
     document.getElementById('quiz-screen').classList.toggle('hidden', vm.screen !== 'quiz');
+    document.getElementById('review-screen').classList.toggle('hidden', vm.screen !== 'review');
     document.getElementById('result-screen').classList.toggle('hidden', vm.screen !== 'result');
 
     const grid = document.getElementById('quiz-grid');
     document.getElementById('list-msg').textContent = vm.listMsg;
     if (vm.quizzes && vm.quizzes.length) {
+        const RESULT_PILLS = {
+            reussi: '<span class="pill ok">Réussi</span>',
+            non_valide: '<span class="pill warn">Non validé</span>',
+            en_attente: '<span class="pill">En attente de correction</span>',
+        };
+
         grid.innerHTML = vm.quizzes.map(q => {
             const closed = !!q.ferme;
             const notEnough = !q.suffisant;
-            const disabled = closed || notEnough;
-            let btnLabel = 'Démarrer';
+            const maxReached = q.tentatives_max && q.mes_tentatives >= q.tentatives_max && !q.tentative_en_cours;
+            const disabled = closed || notEnough || maxReached;
+            let btnLabel = q.tentative_en_cours ? 'Reprendre' : 'Démarrer';
             if (closed) btnLabel = q.ferme;
             else if (notEnough) btnLabel = 'Pas assez de questions';
+            else if (maxReached) btnLabel = 'Nombre de tentatives atteint';
 
             return `
             <div class="card">
@@ -130,7 +150,9 @@ function bind() {
                     <span class="pill">Note sur ${q.note_max}</span>
                     <span class="pill">Seuil de réussite : ${q.seuil_reussite}</span>
                     ${q.duree_minutes ? `<span class="pill">${q.duree_minutes} min chrono</span>` : ''}
-                    ${q.tentatives_max ? `<span class="pill">${q.tentatives_max} tentative(s) max</span>` : ''}
+                    <span class="pill">${q.mes_tentatives} tentative(s) réalisée(s)${q.tentatives_max ? ' / ' + q.tentatives_max : ''}</span>
+                    ${q.tentative_en_cours ? '<span class="pill warn">Tentative en cours</span>' : ''}
+                    ${q.dernier_resultat ? RESULT_PILLS[q.dernier_resultat] || '' : ''}
                 </div>
                 <button type="button" class="start-quiz-btn" data-id="${q.id}" data-nom="${escapeHtml(q.nom)}" data-desc="${escapeHtml(q.description || '')}" data-type="${q.type}" data-duree="${q.duree_minutes || ''}" data-tentatives="${q.tentatives_max || ''}" ${disabled ? 'disabled' : ''}>
                     ${btnLabel}
@@ -361,17 +383,51 @@ function renderQuestions() {
     updateProgress();
 }
 
-async function submitQuiz(auto) {
+// Aperçu en lecture seule des réponses avant l'envoi définitif (voir
+// écran #review-screen) : reprend le libellé des options choisies, ou
+// le texte saisi pour une question ouverte.
+function renderReview() {
+    const container = document.getElementById('review-container');
+    container.innerHTML = currentQuestions.map((q, i) => {
+        let answerHtml;
+        if (q.type === 'ouverte') {
+            const val = answers[q.id];
+            answerHtml = val ? `<p style="white-space:pre-wrap;">${escapeHtml(val)}</p>` : '<p style="color:var(--text-secondary);">Sans réponse</p>';
+        } else if (q.type === 'qcm_multiple') {
+            const given = Array.isArray(answers[q.id]) ? answers[q.id] : [];
+            answerHtml = given.length
+                ? `<p>${given.map(k => escapeHtml(q.options[k] || k)).join(', ')}</p>`
+                : '<p style="color:var(--text-secondary);">Sans réponse</p>';
+        } else {
+            const key = answers[q.id];
+            answerHtml = key ? `<p>${escapeHtml(q.options[key] || key)}</p>` : '<p style="color:var(--text-secondary);">Sans réponse</p>';
+        }
+        return `
+        <div class="question-block">
+            <h3>${i + 1}. ${escapeHtml(q.enonce)} <span class="pill">${escapeHtml(q.categorie)}</span></h3>
+            ${answerHtml}
+        </div>`;
+    }).join('');
+}
+
+document.getElementById('submit-quiz-btn').addEventListener('click', () => {
+    renderReview();
+    vm.screen = 'review';
+});
+document.getElementById('review-back-btn').addEventListener('click', () => { vm.screen = 'quiz'; });
+document.getElementById('review-confirm-btn').addEventListener('click', () => submitQuiz(false, true));
+
+async function submitQuiz(auto, fromReview) {
     const errorEl = document.getElementById('quiz-error');
     errorEl.textContent = '';
 
-    if (!auto && Object.keys(answers).length < currentQuestions.length) {
+    if (!auto && !fromReview && Object.keys(answers).length < currentQuestions.length) {
         if (!confirm('Certaines questions sont sans réponse. Valider quand même ?')) return;
     }
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
-    const btn = document.getElementById('submit-quiz-btn');
+    const btn = fromReview ? document.getElementById('review-confirm-btn') : document.getElementById('submit-quiz-btn');
     btn.disabled = true;
     btn.textContent = 'Validation...';
 
@@ -393,17 +449,17 @@ async function submitQuiz(auto) {
             }
             vm.screen = 'result';
         } else {
+            vm.screen = 'quiz';
             errorEl.textContent = data.message || 'Erreur lors de la validation';
         }
     } catch (err) {
+        vm.screen = 'quiz';
         errorEl.textContent = 'Erreur de connexion au serveur';
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Valider mes réponses';
+        btn.textContent = fromReview ? "Confirmer l'envoi" : 'Valider mes réponses';
     }
 }
-
-document.getElementById('submit-quiz-btn').addEventListener('click', () => submitQuiz(false));
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
     try {

@@ -165,10 +165,34 @@ function qa_grade($questions, $reponses) {
 }
 
 if ($action === 'quizzes') {
+    $candidat = $_SESSION['username'];
+
+    // Tentatives déjà réalisées par ce candidat, regroupées par quiz : nombre
+    // de tentatives terminées, tentative en cours éventuelle, et statut du
+    // dernier résultat publié (pour l'afficher dans le récap du candidat).
+    $tStmt = $pdo->prepare("SELECT quiz_id, statut, reussi, resultat_publie, completed_at FROM tentatives WHERE candidat = ? AND quiz_id IS NOT NULL ORDER BY started_at ASC");
+    $tStmt->execute([$candidat]);
+    $parQuiz = [];
+    foreach ($tStmt->fetchAll() as $t) {
+        $qid = (int)$t['quiz_id'];
+        if (!isset($parQuiz[$qid])) $parQuiz[$qid] = ['count' => 0, 'en_cours' => false, 'dernier_statut' => null];
+        if ($t['statut'] === 'en_cours') {
+            $parQuiz[$qid]['en_cours'] = true;
+            continue;
+        }
+        $parQuiz[$qid]['count']++;
+        if (!$t['resultat_publie']) {
+            $parQuiz[$qid]['dernier_statut'] = 'en_attente';
+        } else {
+            $parQuiz[$qid]['dernier_statut'] = $t['reussi'] === null ? null : ((int)$t['reussi'] === 1 ? 'reussi' : 'non_valide');
+        }
+    }
+
     $stmt = $pdo->query('SELECT * FROM quizzes WHERE actif=1 ORDER BY type, nom');
-    $rows = array_map(function ($row) use ($pdo) {
+    $rows = array_map(function ($row) use ($pdo, $parQuiz) {
         $fermetureMsg = qa_check_window($row);
         [$total, $available, $suffisant] = qa_quiz_availability($pdo, $row);
+        $mine = $parQuiz[(int)$row['id']] ?? ['count' => 0, 'en_cours' => false, 'dernier_statut' => null];
 
         return [
             'id' => (int)$row['id'],
@@ -185,6 +209,9 @@ if ($action === 'quizzes') {
             'questions_disponibles' => $available,
             'suffisant' => $suffisant,
             'ferme' => $fermetureMsg,
+            'mes_tentatives' => $mine['count'],
+            'tentative_en_cours' => $mine['en_cours'],
+            'dernier_resultat' => $mine['dernier_statut'],
         ];
     }, $stmt->fetchAll());
     echo json_encode($rows);
@@ -345,18 +372,28 @@ if ($action === 'submit') {
     $reussi = $note !== null ? ($note >= $tentative['seuil_reussite'] ? 1 : 0) : null;
     $statut = $late ? 'expiree' : 'terminee';
 
-    $stmt = $pdo->prepare("UPDATE tentatives SET statut=?, reponses_json=?, score=?, reussi=?, completed_at=?, details=? WHERE id=?");
-    $stmt->execute([$statut, json_encode($reponsesByQid), $note, $reussi, date('Y-m-d H:i:s'), json_encode($detail), $tentativeId]);
+    // Une tentative contenant des questions ouvertes doit être relue et
+    // corrigée manuellement avant que le résultat ne soit communiqué au
+    // candidat (voir api/quizzes.php, action grade_attempt) ; il en va de
+    // même si le questionnaire ne montre jamais le score immédiatement.
+    $hasOuverte = false;
+    foreach ($questions as $q) {
+        if ($q['type'] === 'ouverte') { $hasOuverte = true; break; }
+    }
+    $resultatPublie = ($tentative['afficher_score'] && !$hasOuverte) ? 1 : 0;
+
+    $stmt = $pdo->prepare("UPDATE tentatives SET statut=?, reponses_json=?, score=?, reussi=?, completed_at=?, details=?, resultat_publie=? WHERE id=?");
+    $stmt->execute([$statut, json_encode($reponsesByQid), $note, $reussi, date('Y-m-d H:i:s'), json_encode($detail), $resultatPublie, $tentativeId]);
 
     $response = [
         'success' => true,
-        'afficher_score' => (bool)$tentative['afficher_score'],
+        'afficher_score' => (bool)$tentative['afficher_score'] && !$hasOuverte,
         'expiree' => $late,
         'total_questions' => count($questions),
         'total_questions_notees' => $totalNotees,
     ];
 
-    if ($tentative['afficher_score']) {
+    if ($response['afficher_score']) {
         $response['note'] = $note;
         $response['note_max'] = (float)$tentative['note_max'];
         $response['seuil_reussite'] = (float)$tentative['seuil_reussite'];
@@ -369,10 +406,15 @@ if ($action === 'submit') {
 }
 
 if ($action === 'my-stats') {
+    // Le nombre total de tentatives est visible immédiatement, mais la
+    // réussite/moyenne ne compte que les tentatives dont le résultat a été
+    // publié (voir resultat_publie, api/quizzes.php action grade_attempt) :
+    // tant qu'une question ouverte n'a pas été corrigée manuellement, le
+    // candidat ne doit pas voir s'il est reçu ou non.
     $candidat = $_SESSION['username'];
     $stmt = $pdo->prepare("SELECT COUNT(*) total,
-        SUM(CASE WHEN reussi = 1 THEN 1 ELSE 0 END) reussies,
-        AVG(CASE WHEN afficher_score = 1 AND score IS NOT NULL AND note_max > 0 THEN score / note_max * 100 ELSE NULL END) moyenne,
+        SUM(CASE WHEN resultat_publie = 1 AND reussi = 1 THEN 1 ELSE 0 END) reussies,
+        AVG(CASE WHEN resultat_publie = 1 AND afficher_score = 1 AND score IS NOT NULL AND note_max > 0 THEN score / note_max * 100 ELSE NULL END) moyenne,
         MAX(completed_at) derniere
         FROM tentatives WHERE candidat = ? AND statut IN ('terminee', 'expiree')");
     $stmt->execute([$candidat]);

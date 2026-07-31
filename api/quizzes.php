@@ -8,8 +8,9 @@ header('Content-Type: application/json');
 
 $pdo = get_db();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
-$qaSection = $action === 'attempts' ? 'attempts' : 'quizzes';
-$qaMinLevel = in_array($action, ['save', 'delete'], true) ? 'manage' : 'read';
+$qaAttemptsActions = ['attempts', 'attempt_detail', 'grade_attempt', 'delete_attempt'];
+$qaSection = in_array($action, $qaAttemptsActions, true) ? 'attempts' : 'quizzes';
+$qaMinLevel = in_array($action, ['save', 'delete', 'grade_attempt', 'delete_attempt'], true) ? 'manage' : 'read';
 require_permission($qaSection, $qaMinLevel);
 
 function qa_count_available($pdo, $categorie) {
@@ -195,6 +196,21 @@ if ($action === 'delete') {
     exit;
 }
 
+// Une tentative a des questions ouvertes si son instantané de questions
+// (figé au démarrage, voir api/attempt.php) en contient au moins une.
+function qa_attempt_has_ouverte($questionsJson) {
+    $questions = json_decode($questionsJson ?? '[]', true) ?: [];
+    foreach ($questions as $q) {
+        if (($q['type'] ?? '') === 'ouverte') return true;
+    }
+    return false;
+}
+
+function qa_attempt_duration_seconds($r) {
+    if (!$r['completed_at']) return null;
+    return strtotime($r['completed_at']) - strtotime($r['started_at']);
+}
+
 if ($action === 'attempts') {
     $quizId = (int)($_GET['quiz_id'] ?? 0);
     if ($quizId) {
@@ -216,10 +232,131 @@ if ($action === 'attempts') {
             'note_max' => (float)$r['note_max'],
             'reussi' => $r['reussi'] !== null ? (bool)$r['reussi'] : null,
             'afficher_score' => (bool)$r['afficher_score'],
+            'resultat_publie' => (bool)$r['resultat_publie'],
+            'a_des_questions_ouvertes' => qa_attempt_has_ouverte($r['questions_json']),
             'started_at' => $r['started_at'],
             'completed_at' => $r['completed_at'],
+            'duree_secondes' => qa_attempt_duration_seconds($r),
         ];
     }, $rows));
+    exit;
+}
+
+// Détail complet d'une tentative pour la relecture/correction : chaque
+// question avec son énoncé, ses options, la réponse donnée, la bonne
+// réponse et les points actuellement attribués (voir details, mis à jour
+// par grade_attempt ci-dessous).
+if ($action === 'attempt_detail') {
+    $id = (int)($_GET['id'] ?? 0);
+    $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE id=?');
+    $stmt->execute([$id]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
+        exit;
+    }
+
+    $questions = json_decode($t['questions_json'], true) ?: [];
+    $reponses = json_decode($t['reponses_json'] ?? 'null', true) ?? [];
+    $detailByQid = [];
+    foreach (json_decode($t['details'] ?? 'null', true) ?? [] as $d) {
+        $detailByQid[$d['question_id']] = $d;
+    }
+
+    $questionsOut = array_map(function ($q) use ($reponses, $detailByQid) {
+        $d = $detailByQid[$q['id']] ?? [];
+        return [
+            'id' => $q['id'],
+            'categorie' => $q['categorie'],
+            'type' => $q['type'],
+            'enonce' => $q['enonce'],
+            'image' => $q['image'] ?? null,
+            'options' => $q['options'] ?? null,
+            'bonne_reponse' => $q['bonne_reponse'] ?? null,
+            'points_max' => (int)$q['points'],
+            'reponse_donnee' => $reponses[$q['id']] ?? ($reponses[(string)$q['id']] ?? null),
+            'points_attribues' => array_key_exists('points', $d) ? (float)$d['points'] : (($q['type'] !== 'ouverte' && ($d['ok'] ?? false)) ? (int)$q['points'] : 0),
+        ];
+    }, $questions);
+
+    echo json_encode([
+        'id' => (int)$t['id'],
+        'quiz_nom' => $t['quiz_nom'],
+        'candidat' => $t['candidat'],
+        'statut' => $t['statut'],
+        'note_max' => (float)$t['note_max'],
+        'seuil_reussite' => (float)$t['seuil_reussite'],
+        'score' => $t['score'] !== null ? (float)$t['score'] : null,
+        'reussi' => $t['reussi'] !== null ? (bool)$t['reussi'] : null,
+        'afficher_score' => (bool)$t['afficher_score'],
+        'resultat_publie' => (bool)$t['resultat_publie'],
+        'started_at' => $t['started_at'],
+        'completed_at' => $t['completed_at'],
+        'questions' => $questionsOut,
+    ]);
+    exit;
+}
+
+// Enregistre la correction manuelle d'une tentative : points attribués par
+// question (obligatoire pour les questions ouvertes, modifiable aussi pour
+// les QCM en cas de contestation), recalcule la note totale et la
+// réussite, et publie ou non le résultat au candidat.
+if ($action === 'grade_attempt') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int)($body['id'] ?? 0);
+    $corrections = is_array($body['corrections'] ?? null) ? $body['corrections'] : [];
+    $publier = !empty($body['publier']);
+
+    $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE id=?');
+    $stmt->execute([$id]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
+        exit;
+    }
+
+    $questions = json_decode($t['questions_json'], true) ?: [];
+    $pointsByQid = [];
+    foreach ($corrections as $c) {
+        $pointsByQid[(int)($c['question_id'] ?? 0)] = max(0, (float)($c['points'] ?? 0));
+    }
+
+    $reponses = json_decode($t['reponses_json'] ?? 'null', true) ?? [];
+    $earned = 0;
+    $totalPoints = 0;
+    $detail = [];
+    foreach ($questions as $q) {
+        $totalPoints += (int)$q['points'];
+        $points = $pointsByQid[$q['id']] ?? 0;
+        $points = min($points, (int)$q['points']);
+        $earned += $points;
+        $entry = ['question_id' => $q['id'], 'type' => $q['type'], 'points' => $points];
+        if ($q['type'] === 'ouverte') {
+            $entry['reponse_libre'] = is_string($reponses[$q['id']] ?? null) ? $reponses[$q['id']] : '';
+        } else {
+            $entry['donnee'] = $reponses[$q['id']] ?? null;
+            $entry['correcte'] = $q['bonne_reponse'];
+        }
+        $detail[] = $entry;
+    }
+
+    $note = $totalPoints > 0 ? round(($earned / $totalPoints) * $t['note_max'], 2) : null;
+    $reussi = $note !== null ? ($note >= $t['seuil_reussite'] ? 1 : 0) : null;
+
+    $stmt = $pdo->prepare('UPDATE tentatives SET score=?, reussi=?, details=?, resultat_publie=? WHERE id=?');
+    $stmt->execute([$note, $reussi, json_encode($detail), $publier ? 1 : 0, $id]);
+
+    echo json_encode(['success' => true, 'score' => $note, 'reussi' => (bool)$reussi, 'resultat_publie' => $publier]);
+    exit;
+}
+
+if ($action === 'delete_attempt') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int)($body['id'] ?? 0);
+    $pdo->prepare('DELETE FROM tentatives WHERE id=?')->execute([$id]);
+    echo json_encode(['success' => true]);
     exit;
 }
 

@@ -113,7 +113,7 @@
                 <h2 style="margin-bottom:16px;">Résultats</h2>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
-                        <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Fin</th></tr></thead>
+                        <thead><tr><th>QCM Examen</th><th>Candidat</th><th>Statut</th><th>Note</th><th>Résultat</th><th>Début</th><th>Temps</th><th></th></tr></thead>
                         <tbody id="attempts-tbody"></tbody>
                     </table>
                 </div>
@@ -461,6 +461,27 @@
             </div>
             <div class="msg error" id="user-modal-msg"></div>
         </form>
+    </div>
+</div>
+
+<!-- ================= MODALE CORRECTION D'UNE TENTATIVE ================= -->
+<div id="grade-modal-overlay" class="modal-overlay hidden">
+    <div class="modal" style="max-width:760px;">
+        <h2 id="grade-modal-title">Relecture / correction</h2>
+        <p class="modal-hint" id="grade-modal-meta" style="margin:0;"></p>
+        <div id="grade-questions-list" style="display:flex;flex-direction:column;gap:14px;margin-top:10px;"></div>
+        <div class="panel" style="margin-top:6px;flex-direction:row;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div>
+                <p class="modal-hint" style="margin:0;">Note recalculée</p>
+                <p id="grade-total" style="font-weight:600;font-size:1.2rem;">—</p>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin:0;"><input type="checkbox" id="grade-publier" style="width:auto;"> Publier la note au candidat</label>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="secondary" id="grade-cancel-btn">Fermer</button>
+            <button type="button" id="grade-save-btn">Enregistrer la correction</button>
+        </div>
+        <div class="msg error" id="grade-modal-msg"></div>
     </div>
 </div>
 
