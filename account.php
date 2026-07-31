@@ -11,6 +11,7 @@
 <header class="site-header">
     <div class="site-header-row">
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
+        <h1 style="flex:1;text-align:center;font-size:1.3rem;color:var(--text-primary);">Gestionnaire de formations</h1>
         <div style="display:flex;gap:14px;align-items:center;">
             <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
             <button type="button" class="secondary" id="logout-btn">Se déconnecter</button>

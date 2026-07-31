@@ -11,6 +11,7 @@
 <header class="site-header">
     <div class="site-header-row">
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
+        <h1 style="flex:1;text-align:center;font-size:1.3rem;color:var(--text-primary);">Gestionnaire de formations</h1>
     </div>
 </header>
 <nav class="breadcrumb"><div class="breadcrumb-row"><a href="dashboard.php">Accueil</a><span class="sep">/</span><a href="candidate.php">Espace candidat</a><span class="sep">/</span><span class="current">Mes stages</span></div></nav>
