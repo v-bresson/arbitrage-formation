@@ -21,7 +21,7 @@
 <div class="header-spacer"></div>
 <script src="assets/header-fix.js"></script>
 
-<div class="page">
+<div class="page" style="max-width:720px;">
     <form class="panel" id="account-form" style="text-align:left;">
         <h2 style="margin:0;">Informations personnelles</h2>
         <div class="field"><label>Identifiant</label><input type="text" id="acc-username" disabled></div>
