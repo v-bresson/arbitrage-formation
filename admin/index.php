@@ -85,6 +85,7 @@
                     <div style="display:flex;gap:10px;flex-wrap:wrap;">
                         <button type="button" id="new-question-btn">+ Nouvelle question</button>
                         <button type="button" class="secondary" id="import-btn">Importer (CSV / XLSX)</button>
+                        <a class="btn secondary" href="../data/modele_import_questions.csv" download style="text-decoration:none;">Télécharger un modèle</a>
                     </div>
                     <select id="category-filter" style="max-width:220px;"><option value="">Toutes les catégories</option></select>
                 </div>
