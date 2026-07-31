@@ -529,6 +529,12 @@ document.getElementById('import-form').addEventListener('submit', async (e) => {
             if (data.errors && data.errors.length) text += ` ${data.errors.length} ligne(s) ignorée(s) : ${data.errors.join(' | ')}`;
             msgEl.textContent = text;
             await loadQuestions();
+            // Ferme la fenêtre automatiquement une fois l'import terminé, sauf
+            // si des lignes ont été ignorées (le message d'erreur reste alors
+            // affiché pour que l'admin puisse les consulter).
+            if (!data.errors || !data.errors.length) {
+                setTimeout(() => importModal.classList.add('hidden'), 900);
+            }
         } else {
             msgEl.className = 'msg error';
             msgEl.textContent = data.message || "Erreur lors de l'import";
