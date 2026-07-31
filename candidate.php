@@ -11,6 +11,7 @@
 <header class="site-header">
     <div class="site-header-row">
         <div class="brand"><img src="assets/logo.png" alt="ArcheryOps - Arbitrage"></div>
+        <h1 style="flex:1;text-align:center;font-size:1.3rem;color:var(--text-primary);">Gestionnaire de formations</h1>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
             <div style="display:flex;gap:14px;align-items:center;">
                 <span id="welcome-msg" style="color:var(--text-secondary);font-size:0.9rem;"></span>
@@ -52,9 +53,6 @@
             </div>
         </div>
         <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
-
-        <div class="grid" id="tiles-grid"></div>
-        <p class="msg" id="tiles-msg" style="text-align:center;margin-top:20px;"></p>
     </div>
 
     <!-- ---------- VUE FORMATEUR : MES CANDIDATS ---------- -->
@@ -63,7 +61,7 @@
             <label>Rechercher un candidat (identifiant, nom, prénom, club)</label>
             <input type="text" id="candidats-search-input" placeholder="Rechercher un candidat...">
         </div>
-        <div class="table-wrap panel" id="candidats-search-results" style="padding:0;">
+        <div class="table-wrap panel hidden" id="candidats-search-results" style="padding:0;">
             <table>
                 <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th></th></tr></thead>
                 <tbody id="candidats-search-tbody"></tbody>
@@ -106,6 +104,10 @@
             <div class="grid" id="fiche-stats-grid" style="margin-bottom:24px;"></div>
         </div>
     </div>
+
+    <!-- ---------- TUILES : communes à la vue candidat et à la vue formateur ---------- -->
+    <div class="grid" id="tiles-grid" style="margin-top:24px;"></div>
+    <p class="msg" id="tiles-msg" style="text-align:center;margin-top:20px;"></p>
 </div>
 
 <!-- ================= MODALE TUILE (mode paramétrage) ================= -->
@@ -203,18 +205,13 @@ function bind() {
     // En mode paramétrage, seule l'organisation des tuiles est affichée
     // (profil et statistiques masqués) pour ne pas mélanger la réorganisation
     // des tuiles avec celle, distincte, des cartes de statistiques. Un compte
-    // Formateur (vue exclusive, voir includes/permissions.php) qui a aussi le
-    // droit de gérer les tuiles bascule temporairement sur la vue candidat
-    // (tuiles) tant que le mode paramétrage est actif.
-    document.getElementById('profile-card').classList.toggle('hidden', inManageMode);
-    document.getElementById('stats-grid').classList.toggle('hidden', inManageMode);
+    // Formateur (vue exclusive, voir includes/permissions.php) n'a de toute
+    // façon pas de profil/stats candidat à afficher ici ; les tuiles (voir
+    // plus bas, communes aux deux vues) restent visibles et gérables.
+    document.getElementById('profile-card').classList.toggle('hidden', inManageMode || vm.formateurExclusiveView);
+    document.getElementById('stats-grid').classList.toggle('hidden', inManageMode || vm.formateurExclusiveView);
 
-    if (vm.formateurExclusiveView) {
-        document.getElementById('candidate-view').classList.toggle('hidden', !inManageMode);
-        document.getElementById('formateur-view').classList.toggle('hidden', inManageMode);
-    }
-
-    if (!inManageMode) renderStats();
+    if (!inManageMode && !vm.formateurExclusiveView) renderStats();
 
     const grid = document.getElementById('tiles-grid');
     const msg = document.getElementById('tiles-msg');
@@ -512,14 +509,15 @@ async function init() {
         vm.profile = { nom: data.nom, prenom: data.prenom, club: data.club, numero_licence: data.numero_licence };
 
         // Choix exclusif : un compte Formateur voit la recherche de ses
-        // candidats assignés à la place de son propre contenu candidat,
+        // candidats assignés à la place de son propre profil/stats candidat,
         // même s'il est aussi Candidat (voir includes/permissions.php,
-        // qa_has_formateur_role).
+        // qa_has_formateur_role). Les tuiles (voir plus bas dans le HTML,
+        // communes aux deux vues) restent affichées dans tous les cas.
         if ((data.roles || []).includes('formateur')) {
             vm.formateurExclusiveView = true;
             document.getElementById('candidate-view').classList.add('hidden');
             document.getElementById('formateur-view').classList.remove('hidden');
-            await searchCandidats('');
+            await loadTiles();
             return;
         }
 
@@ -564,9 +562,19 @@ async function searchCandidats(q) {
     }
 }
 
+// La liste des candidats ne s'affiche que si une recherche est lancée
+// (aucun affichage par défaut de tous les candidats assignés).
 document.getElementById('candidats-search-input').addEventListener('input', (e) => {
     clearTimeout(candidatsSearchTimer);
-    const q = e.target.value;
+    const q = e.target.value.trim();
+    const resultsBox = document.getElementById('candidats-search-results');
+    if (!q) {
+        resultsBox.classList.add('hidden');
+        document.getElementById('candidats-search-tbody').innerHTML = '';
+        document.getElementById('candidats-search-msg').textContent = '';
+        return;
+    }
+    resultsBox.classList.remove('hidden');
     candidatsSearchTimer = setTimeout(() => searchCandidats(q), 250);
 });
 
