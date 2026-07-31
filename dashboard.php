@@ -32,10 +32,11 @@
 <script src="assets/header-fix.js"></script>
 
 <div class="page wide">
+    <h2 id="welcome-title" style="margin-bottom:16px;"></h2>
     <div class="grid" id="spaces-grid"></div>
 
     <div id="custom-tiles-section" style="margin-top:32px;">
-        <h2 style="margin-bottom:16px;">Raccourcis personnalisés</h2>
+        <h2 style="margin-bottom:16px;">Liens utiles</h2>
         <div class="grid" id="tiles-grid"></div>
         <p class="msg" id="tiles-msg"></p>
     </div>
@@ -119,14 +120,23 @@ const vm = qaReactive({
     manageMode: false,
     adminTiles: null,
     formateurACorriger: 0,
+    nom: null,
+    prenom: null,
 });
 
 function canManageTiles() {
     return vm.role === 'super_admin' || vm.permissions.tiles === 'manage';
 }
 
+// Prénom Nom si renseignés, sinon repli sur l'identifiant technique (compte
+// sans fiche complétée).
+function fullName() {
+    return [vm.prenom, vm.nom].filter(Boolean).join(' ') || vm.username;
+}
+
 function bind() {
-    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
+    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${fullName()}` : '';
+    document.getElementById('welcome-title').textContent = vm.username ? `Bienvenue ${fullName()}` : '';
 
     const spaces = [];
     if (vm.hasCandidatAccess) {
@@ -412,6 +422,8 @@ async function init() {
         if (!data.authenticated) { window.location.href = 'index.php'; return; }
 
         vm.username = data.username;
+        vm.nom = data.nom;
+        vm.prenom = data.prenom;
         vm.role = data.role;
         vm.permissions = data.permissions || {};
         vm.hasCandidatAccess = !!data.has_candidat_access;

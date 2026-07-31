@@ -70,7 +70,7 @@ async function init() {
         });
         const data = await res.json();
         if (!data.authenticated) { window.location.href = 'index.php'; return; }
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${[data.prenom, data.nom].filter(Boolean).join(' ') || data.username}`;
     } catch (err) {
         window.location.href = 'index.php';
         return;

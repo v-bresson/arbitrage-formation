@@ -191,7 +191,8 @@ function canManageTiles() {
 }
 
 function bind() {
-    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
+    const fullName = [vm.profile.prenom, vm.profile.nom].filter(Boolean).join(' ') || vm.username;
+    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${fullName}` : '';
 
     document.getElementById('profile-nom').textContent = vm.profile.nom || '—';
     document.getElementById('profile-prenom').textContent = vm.profile.prenom || '—';

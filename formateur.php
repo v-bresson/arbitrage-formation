@@ -31,6 +31,7 @@
     <div class="header-spacer"></div>
     <script src="assets/header-fix.js"></script>
 
+    <h2 id="formateur-title" style="margin-bottom:16px;"></h2>
     <div class="grid" id="stats-grid" style="margin-bottom:24px;"></div>
 
     <div class="grid" id="tiles-grid"></div>
@@ -54,14 +55,22 @@ const vm = qaReactive({
     username: null,
     permissions: {},
     dashboardStats: null,
+    nom: null,
+    prenom: null,
 });
 
 function canRead(section) {
     return vm.permissions[section] && vm.permissions[section] !== 'none';
 }
 
+// Prénom Nom si renseignés, sinon repli sur l'identifiant technique.
+function fullName() {
+    return [vm.prenom, vm.nom].filter(Boolean).join(' ') || vm.username;
+}
+
 function bind() {
-    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${vm.username}` : '';
+    document.getElementById('welcome-msg').textContent = vm.username ? `Connecté en tant que ${fullName()}` : '';
+    document.getElementById('formateur-title').textContent = vm.username ? `Espace Formateur de ${fullName()}` : '';
 
     const s = vm.dashboardStats;
     document.getElementById('stats-grid').innerHTML = !s ? '' : `
@@ -124,6 +133,8 @@ async function init() {
         }
 
         vm.username = data.username;
+        vm.nom = data.nom;
+        vm.prenom = data.prenom;
         vm.permissions = data.permissions || {};
         document.getElementById('formateur-screen').classList.remove('hidden');
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();

@@ -175,7 +175,7 @@ async function init() {
             return;
         }
 
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${[data.prenom, data.nom].filter(Boolean).join(' ') || data.username}`;
         document.getElementById('candidats-screen').classList.remove('hidden');
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
 

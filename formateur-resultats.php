@@ -303,7 +303,7 @@ async function init() {
         }
 
         canManageAttempts = data.role === 'super_admin' || perms.attempts === 'manage';
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${[data.prenom, data.nom].filter(Boolean).join(' ') || data.username}`;
         document.getElementById('resultats-screen').classList.remove('hidden');
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();
 

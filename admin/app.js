@@ -148,7 +148,7 @@ async function checkSession() {
         }
         vm.role = data.role;
         vm.permissions = data.permissions || {};
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${[data.prenom, data.nom].filter(Boolean).join(' ') || data.username}`;
         showScreen('admin');
         applyPermissionGating();
         if (window.qaSyncFixedHeader) window.qaSyncFixedHeader();

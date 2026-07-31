@@ -294,7 +294,7 @@ async function checkAuth() {
             return false;
         }
         currentUsername = data.username;
-        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${data.username}`;
+        document.getElementById('welcome-msg').textContent = `Connecté en tant que ${[data.prenom, data.nom].filter(Boolean).join(' ') || data.username}`;
         return true;
     } catch (err) {
         window.location.href = 'index.php';
