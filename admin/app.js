@@ -242,12 +242,6 @@ async function loadQuestions() {
     }
 }
 
-function formatBonneReponse(q) {
-    if (q.type === 'ouverte') return '—';
-    if (q.type === 'qcm_multiple') return (q.bonne_reponse || '').split(',').map(l => l.toUpperCase()).join(' + ');
-    return (q.bonne_reponse || '').toUpperCase();
-}
-
 // ---------- Rendu : filtre de catégorie + datalist du formulaire questionnaire ----------
 qaWatchEffect(() => {
     const categories = [...new Set(vm.questions.map(q => q.categorie))].sort();
@@ -269,7 +263,7 @@ qaWatchEffect(() => {
     const filtered = filter ? vm.questions.filter(q => q.categorie === filter) : vm.questions;
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="7" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-secondary);">Aucune question. Ajoutez-en une ou importez un fichier.</td></tr>`;
         return;
     }
 
@@ -277,8 +271,7 @@ qaWatchEffect(() => {
         <tr>
             <td>${escapeHtml(q.categorie)}</td>
             <td>${QUESTION_TYPE_LABELS[q.type] || q.type}${q.image ? ' 🖼' : ''}</td>
-            <td>${escapeHtml(q.enonce.slice(0, 70))}${q.enonce.length > 70 ? '…' : ''}</td>
-            <td>${formatBonneReponse(q)}</td>
+            <td style="max-width:280px;">${escapeHtml(q.enonce.slice(0, 40))}${q.enonce.length > 40 ? '…' : ''}</td>
             <td>${q.points}</td>
             <td>${q.actif ? '<span class="pill ok">Active</span>' : '<span class="pill">Inactive</span>'}</td>
             <td class="row-actions">

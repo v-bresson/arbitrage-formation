@@ -91,7 +91,7 @@
                 </div>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
-                        <thead><tr><th>Catégorie</th><th>Type</th><th>Énoncé</th><th>Bonne réponse</th><th>Points</th><th>Actif</th><th></th></tr></thead>
+                        <thead><tr><th>Catégorie</th><th>Type</th><th style="max-width:280px;">Énoncé</th><th>Points</th><th>Actif</th><th></th></tr></thead>
                         <tbody id="questions-tbody"></tbody>
                     </table>
                 </div>

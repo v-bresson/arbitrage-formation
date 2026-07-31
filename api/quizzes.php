@@ -13,6 +13,24 @@ $qaSection = in_array($action, $qaAttemptsActions, true) ? 'attempts' : 'quizzes
 $qaMinLevel = in_array($action, ['save', 'delete', 'grade_attempt', 'delete_attempt'], true) ? 'manage' : 'read';
 require_permission($qaSection, $qaMinLevel);
 
+// Un compte Formateur "simple" (sans le rôle Membre CRA ni Super-Admin, qui
+// voient toujours l'ensemble) ne doit voir/gérer que les tentatives de ses
+// propres candidats assignés (table candidat_formateurs) — pas celles de
+// tous les candidats de l'application.
+function qa_formateur_scoped_usernames($pdo, $userId, $role) {
+    $roles = qa_user_role_keys($pdo, $userId, $role);
+    if (!in_array('formateur', $roles, true) || in_array('membre_cra', $roles, true) || in_array('super_admin', $roles, true)) {
+        return null; // pas de restriction
+    }
+    $stmt = $pdo->prepare('SELECT u.username FROM candidat_formateurs cf JOIN users u ON u.id = cf.candidat_id WHERE cf.formateur_id = ?');
+    $stmt->execute([$userId]);
+    return array_column($stmt->fetchAll(), 'username');
+}
+
+$qaScopedUsernames = in_array($action, $qaAttemptsActions, true)
+    ? qa_formateur_scoped_usernames($pdo, (int)$_SESSION['user_id'], $_SESSION['role'] ?? 'candidat')
+    : null;
+
 function qa_count_available($pdo, $categorie) {
     $countStmt = $pdo->prepare("SELECT COUNT(*) c FROM questions WHERE actif=1 AND (? = '' OR categorie = ?)");
     $countStmt->execute([$categorie ?? '', $categorie ?? '']);
@@ -213,12 +231,23 @@ function qa_attempt_duration_seconds($r) {
 
 if ($action === 'attempts') {
     $quizId = (int)($_GET['quiz_id'] ?? 0);
-    if ($quizId) {
-        $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE quiz_id=? ORDER BY started_at DESC');
-        $stmt->execute([$quizId]);
-    } else {
-        $stmt = $pdo->query('SELECT * FROM tentatives ORDER BY started_at DESC LIMIT 300');
+
+    if ($qaScopedUsernames !== null && empty($qaScopedUsernames)) {
+        echo json_encode([]);
+        exit;
     }
+
+    $where = [];
+    $params = [];
+    if ($quizId) { $where[] = 'quiz_id = ?'; $params[] = $quizId; }
+    if ($qaScopedUsernames !== null) {
+        $where[] = 'candidat IN (' . implode(',', array_fill(0, count($qaScopedUsernames), '?')) . ')';
+        $params = array_merge($params, $qaScopedUsernames);
+    }
+    $sql = 'SELECT * FROM tentatives' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY started_at DESC';
+    if (!$quizId) $sql .= ' LIMIT 300';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll();
     echo json_encode(array_map(function ($r) {
         return [
@@ -251,7 +280,7 @@ if ($action === 'attempt_detail') {
     $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE id=?');
     $stmt->execute([$id]);
     $t = $stmt->fetch();
-    if (!$t) {
+    if (!$t || ($qaScopedUsernames !== null && !in_array($t['candidat'], $qaScopedUsernames, true))) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
         exit;
@@ -311,7 +340,7 @@ if ($action === 'grade_attempt') {
     $stmt = $pdo->prepare('SELECT * FROM tentatives WHERE id=?');
     $stmt->execute([$id]);
     $t = $stmt->fetch();
-    if (!$t) {
+    if (!$t || ($qaScopedUsernames !== null && !in_array($t['candidat'], $qaScopedUsernames, true))) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
         exit;
@@ -355,6 +384,18 @@ if ($action === 'grade_attempt') {
 if ($action === 'delete_attempt') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($body['id'] ?? 0);
+
+    if ($qaScopedUsernames !== null) {
+        $stmt = $pdo->prepare('SELECT candidat FROM tentatives WHERE id=?');
+        $stmt->execute([$id]);
+        $candidat = $stmt->fetchColumn();
+        if ($candidat === false || !in_array($candidat, $qaScopedUsernames, true)) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Tentative introuvable']);
+            exit;
+        }
+    }
+
     $pdo->prepare('DELETE FROM tentatives WHERE id=?')->execute([$id]);
     echo json_encode(['success' => true]);
     exit;
