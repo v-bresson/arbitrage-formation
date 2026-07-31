@@ -25,7 +25,7 @@ $isSuperAdmin = in_array('super_admin', $roles, true);
 if ($action === 'search') {
     $q = trim($_GET['q'] ?? '');
     $params = [];
-    $where = $isSuperAdmin ? '1=1' : 'formateur_referent_id = ?';
+    $where = $isSuperAdmin ? '1=1' : 'id IN (SELECT candidat_id FROM candidat_formateurs WHERE formateur_id = ?)';
     if (!$isSuperAdmin) $params[] = $userId;
     if ($q !== '') {
         $where .= " AND (username LIKE ? OR nom LIKE ? OR prenom LIKE ? OR club LIKE ?)";
@@ -51,7 +51,8 @@ if ($action === 'fiche') {
     $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $u = $stmt->fetch();
-    if (!$u || (!$isSuperAdmin && (int)($u['formateur_referent_id'] ?? 0) !== $userId)) {
+    $assignedFormateurIds = $u ? array_column(qa_user_formateurs($pdo, $u['id']), 'id') : [];
+    if (!$u || (!$isSuperAdmin && !in_array($userId, $assignedFormateurIds, true))) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Candidat introuvable']);
         exit;

@@ -21,7 +21,7 @@ if ($action === 'get') {
     $hasEntreeFormation = qa_column_exists($pdo, 'users', 'date_entree_formation');
     $extraCols = ($hasFormation ? ', niveau_formation' : '') . ($hasEntreeFormation ? ', date_entree_formation' : '');
 
-    $stmt = $pdo->prepare("SELECT username, nom, prenom, email, numero_licence, telephone, club, formateur_referent_id$extraCols FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT username, nom, prenom, email, numero_licence, telephone, club$extraCols FROM users WHERE id = ?");
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
     if (!$row) {
@@ -31,16 +31,10 @@ if ($action === 'get') {
     }
 
     // Informations renseignées par l'administrateur (fiche formation),
-    // affichées en lecture seule sur "Mon compte" : formateur référent,
+    // affichées en lecture seule sur "Mon compte" : formateur(s) référent(s),
     // niveau de diplôme en cours, date d'entrée en formation.
-    $formateurNom = null;
-    if (!empty($row['formateur_referent_id'])) {
-        $fStmt = $pdo->prepare('SELECT username, nom, prenom FROM users WHERE id = ?');
-        $fStmt->execute([$row['formateur_referent_id']]);
-        $f = $fStmt->fetch();
-        if ($f) $formateurNom = trim(($f['prenom'] ?? '') . ' ' . ($f['nom'] ?? '')) ?: $f['username'];
-    }
-    $row['formateur_referent_nom'] = $formateurNom;
+    $formateurs = qa_user_formateurs($pdo, $userId);
+    $row['formateur_referent_nom'] = implode(', ', array_map(fn($f) => trim(($f['prenom'] ?? '') . ' ' . ($f['nom'] ?? '')) ?: $f['username'], $formateurs)) ?: null;
     if (!$hasFormation) $row['niveau_formation'] = null;
     if (!$hasEntreeFormation) $row['date_entree_formation'] = null;
 

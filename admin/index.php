@@ -139,7 +139,7 @@
                 <h2 style="margin-bottom:16px;">Candidats</h2>
                 <div class="table-wrap panel" style="padding:0;">
                     <table>
-                        <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Niveau</th><th>Option</th><th>Formateur référent</th><th>Actif</th><th></th></tr></thead>
+                        <thead><tr><th>Identifiant</th><th>Nom</th><th>Club</th><th>Niveau</th><th>Option</th><th>Formateurs référents</th><th>Actif</th><th></th></tr></thead>
                         <tbody id="candidats-tbody"></tbody>
                     </table>
                 </div>
@@ -441,13 +441,11 @@
                         </select>
                     </div>
                 </div>
+                <div class="field">
+                    <label>Formateurs référents (un ou plusieurs)</label>
+                    <div id="user-formateurs-checkboxes" style="display:flex;flex-direction:column;gap:8px;max-height:180px;overflow-y:auto;padding:4px;"></div>
+                </div>
                 <div class="field-row">
-                    <div class="field">
-                        <label>Formateur référent</label>
-                        <select id="user-formateur-referent">
-                            <option value="">—</option>
-                        </select>
-                    </div>
                     <div class="field">
                         <label>Date d'entrée en formation</label>
                         <input type="date" id="user-date-entree-formation">

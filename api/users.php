@@ -47,7 +47,7 @@ function qa_user_row_out($pdo, $row) {
         'club' => $row['club'],
         'niveau_formation' => $row['niveau_formation'] ?? null,
         'option_pratique' => $row['option_pratique'] ?? null,
-        'formateur_referent_id' => isset($row['formateur_referent_id']) && $row['formateur_referent_id'] !== null ? (int)$row['formateur_referent_id'] : null,
+        'formateurs' => qa_user_formateurs($pdo, $row['id']),
         'date_entree_formation' => $row['date_entree_formation'] ?? null,
         'created_at' => $row['created_at'],
         'permission_overrides' => qa_user_overrides($pdo, $row['id']),
@@ -107,7 +107,7 @@ if ($action === 'save') {
     $club = trim($body['club'] ?? '') ?: null;
     $niveauFormation = in_array($body['niveau_formation'] ?? '', QA_NIVEAUX_FORMATION, true) ? $body['niveau_formation'] : null;
     $optionPratique = in_array($body['option_pratique'] ?? '', QA_OPTIONS_PRATIQUE, true) ? $body['option_pratique'] : null;
-    $formateurReferentId = !empty($body['formateur_referent_id']) ? (int)$body['formateur_referent_id'] : null;
+    $formateurIds = array_values(array_unique(array_map('intval', is_array($body['formateur_ids'] ?? null) ? $body['formateur_ids'] : [])));
     $dateEntreeFormation = preg_match('/^\d{4}-\d{2}-\d{2}$/', $body['date_entree_formation'] ?? '') ? $body['date_entree_formation'] : null;
 
     if ($username === '' || strlen($username) < 3) {
@@ -139,15 +139,15 @@ if ($action === 'save') {
     try {
         if ($id) {
             if ($password !== '') {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=?, date_entree_formation=? WHERE id=?');
-                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, password_hash=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, date_entree_formation=? WHERE id=?');
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $dateEntreeFormation, $id]);
             } else {
-                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, formateur_referent_id=?, date_entree_formation=? WHERE id=?');
-                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation, $id]);
+                $stmt = $pdo->prepare('UPDATE users SET username=?, role=?, actif=?, nom=?, prenom=?, email=?, numero_licence=?, telephone=?, club=?, niveau_formation=?, option_pratique=?, date_entree_formation=? WHERE id=?');
+                $stmt->execute([$username, $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $dateEntreeFormation, $id]);
             }
         } else {
-            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club, niveau_formation, option_pratique, formateur_referent_id, date_entree_formation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $formateurReferentId, $dateEntreeFormation]);
+            $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role, actif, nom, prenom, email, numero_licence, telephone, club, niveau_formation, option_pratique, date_entree_formation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $role, $actif, $nom, $prenom, $email, $numeroLicence, $telephone, $club, $niveauFormation, $optionPratique, $dateEntreeFormation]);
             $id = $pdo->lastInsertId();
         }
     } catch (PDOException $e) {
@@ -168,6 +168,15 @@ if ($action === 'save') {
     $insertRole = $pdo->prepare('INSERT IGNORE INTO user_roles (user_id, role_key) VALUES (?, ?)');
     foreach ($roles as $r) {
         $insertRole->execute([$id, $r]);
+    }
+
+    // Remplace les formateurs référents assignés à ce candidat (voir
+    // includes/db.php, table candidat_formateurs — un candidat peut avoir
+    // plusieurs formateurs référents).
+    $pdo->prepare('DELETE FROM candidat_formateurs WHERE candidat_id = ?')->execute([$id]);
+    $insertFormateur = $pdo->prepare('INSERT IGNORE INTO candidat_formateurs (candidat_id, formateur_id) VALUES (?, ?)');
+    foreach ($formateurIds as $fid) {
+        if ($fid > 0 && $fid != $id) $insertFormateur->execute([$id, $fid]);
     }
 
     // Remplace les surcharges de permissions de cet utilisateur par celles

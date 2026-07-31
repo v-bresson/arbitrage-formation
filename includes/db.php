@@ -39,6 +39,21 @@ function qa_column_exists($pdo, $table, $column) {
     return (int)$stmt->fetch()['c'] > 0;
 }
 
+// Formateurs référents assignés à un candidat (table candidat_formateurs,
+// many-to-many). Utilisé par api/users.php (fiche admin), api/account.php
+// (« Mon compte ») et api/mes_candidats.php (recherche formateur).
+function qa_user_formateurs($pdo, $candidatId) {
+    $stmt = $pdo->prepare('SELECT u.id, u.username, u.nom, u.prenom FROM candidat_formateurs cf
+        JOIN users u ON u.id = cf.formateur_id WHERE cf.candidat_id = ? ORDER BY u.nom, u.prenom, u.username');
+    $stmt->execute([$candidatId]);
+    return array_map(fn($r) => [
+        'id' => (int)$r['id'],
+        'username' => $r['username'],
+        'nom' => $r['nom'],
+        'prenom' => $r['prenom'],
+    ], $stmt->fetchAll());
+}
+
 // ---------------------------------------------------------------------
 // Migrations de schéma : liste centrale des évolutions de la base au fil
 // des versions. Une migration n'est JAMAIS appliquée automatiquement sur
@@ -395,6 +410,29 @@ function get_db() {
         SELECT u.id, CASE WHEN u.role = 'admin' THEN 'super_admin' WHEN u.role = 'user' THEN 'candidat' ELSE u.role END
         FROM users u
         WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id)");
+
+    // ---------------------------------------------------------------
+    // Formateurs référents d'un candidat : relation many-to-many (un
+    // candidat peut avoir plusieurs formateurs référents), remplace
+    // l'ancienne colonne unique users.formateur_referent_id (conservée en
+    // base pour compatibilité mais plus utilisée par le code).
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS candidat_formateurs (
+        candidat_id INT UNSIGNED NOT NULL,
+        formateur_id INT UNSIGNED NOT NULL,
+        PRIMARY KEY (candidat_id, formateur_id),
+        CONSTRAINT fk_candidat_formateurs_candidat FOREIGN KEY (candidat_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_candidat_formateurs_formateur FOREIGN KEY (formateur_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Reprend l'ancien formateur unique pour tout candidat n'ayant encore
+    // aucune ligne ici (comptes créés avant l'introduction du multi-formateur).
+    if (qa_column_exists($pdo, 'users', 'formateur_referent_id')) {
+        $pdo->exec("INSERT INTO candidat_formateurs (candidat_id, formateur_id)
+            SELECT u.id, u.formateur_referent_id FROM users u
+            WHERE u.formateur_referent_id IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM candidat_formateurs cf WHERE cf.candidat_id = u.id)");
+    }
 
     // ---------------------------------------------------------------
     // Rôles disponibles (4 rôles historiques + rôles personnalisés créés

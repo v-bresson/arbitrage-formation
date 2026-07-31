@@ -1132,7 +1132,9 @@ function renderCandidatsTable(users, emptyMsg) {
     const formateurs = vm.users.filter(u => (u.roles || []).includes('formateur') || (u.roles || []).includes('membre_cra'));
     const canEdit = canManage('users');
 
-    tbody.innerHTML = users.map(u => `
+    tbody.innerHTML = users.map(u => {
+        const assignedIds = (u.formateurs || []).map(f => String(f.id));
+        return `
         <tr data-id="${u.id}">
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml([u.prenom, u.nom].filter(Boolean).join(' ')) || '—'}</td>
@@ -1145,22 +1147,31 @@ function renderCandidatsTable(users, emptyMsg) {
                 <option value="">—</option>
                 ${OPTIONS_PRATIQUE.map(o => `<option value="${escapeHtml(o)}" ${u.option_pratique === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
             </select>` : escapeHtml(u.option_pratique || '—')}</td>
-            <td>${canEdit ? `<select class="quick-formateur-select" data-id="${u.id}">
-                <option value="">—</option>
-                ${formateurs.map(f => `<option value="${f.id}" ${String(u.formateur_referent_id) === String(f.id) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`).join('')}
-            </select>` : escapeHtml((formateurs.find(f => String(f.id) === String(u.formateur_referent_id)) || {}).username || '—')}</td>
+            <td>${canEdit ? `<select multiple class="quick-formateur-select" data-id="${u.id}" size="${Math.min(4, Math.max(2, formateurs.length))}" style="min-width:170px;">
+                ${formateurs.map(f => `<option value="${f.id}" ${assignedIds.includes(String(f.id)) ? 'selected' : ''}>${escapeHtml(formateurLabel(f))}</option>`).join('')}
+            </select>` : escapeHtml((u.formateurs || []).map(formateurLabel).join(', ') || '—')}</td>
             <td>${u.actif ? '<span class="pill ok">Actif</span>' : '<span class="pill">Inactif</span>'}</td>
             <td class="row-actions">
                 ${canEdit ? `<button type="button" class="secondary edit-user-btn" data-id="${u.id}">Modifier</button><button type="button" class="danger delete-user-btn" data-id="${u.id}">Supprimer</button>` : ''}
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 
     tbody.querySelectorAll('.edit-user-btn').forEach(btn => btn.addEventListener('click', () => openUserModal(btn.dataset.id)));
     tbody.querySelectorAll('.delete-user-btn').forEach(btn => btn.addEventListener('click', () => deleteUser(btn.dataset.id)));
     tbody.querySelectorAll('.quick-niveau-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { niveau_formation: sel.value })));
     tbody.querySelectorAll('.quick-option-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { option_pratique: sel.value })));
-    tbody.querySelectorAll('.quick-formateur-select').forEach(sel => sel.addEventListener('change', () => quickSaveCandidat(sel.dataset.id, { formateur_referent_id: sel.value || null })));
+    tbody.querySelectorAll('.quick-formateur-select').forEach(sel => sel.addEventListener('change', () => {
+        const ids = Array.from(sel.selectedOptions).map(o => o.value);
+        quickSaveCandidat(sel.dataset.id, { formateur_ids: ids });
+    }));
+}
+
+// Libellé d'affichage d'un formateur : "Prénom Nom" si renseigné, sinon
+// son identifiant.
+function formateurLabel(f) {
+    return [f.prenom, f.nom].filter(Boolean).join(' ') || f.username;
 }
 
 async function quickSaveCandidat(id, changes) {
@@ -1180,7 +1191,7 @@ async function quickSaveCandidat(id, changes) {
         actif: u.actif,
         niveau_formation: u.niveau_formation,
         option_pratique: u.option_pratique,
-        formateur_referent_id: u.formateur_referent_id,
+        formateur_ids: (u.formateurs || []).map(f => f.id),
         date_entree_formation: u.date_entree_formation,
         ...changes,
     };
@@ -1208,12 +1219,27 @@ qaWatchEffect(() => {
 const userModal = document.getElementById('user-modal-overlay');
 const userForm = document.getElementById('user-form');
 
-function populateFormateurReferentOptions(selectedId) {
-    const select = document.getElementById('user-formateur-referent');
+// Un candidat peut avoir plusieurs formateurs référents (voir
+// includes/db.php, table candidat_formateurs) : cases à cocher plutôt
+// qu'un select unique, libellées par prénom/nom.
+function populateFormateursCheckboxes(selectedIds) {
+    const container = document.getElementById('user-formateurs-checkboxes');
     const formateurs = vm.users.filter(u => (u.roles || []).includes('formateur') || (u.roles || []).includes('membre_cra'));
-    select.innerHTML = '<option value="">—</option>' + formateurs.map(f =>
-        `<option value="${f.id}" ${String(f.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(f.username)}</option>`
-    ).join('');
+    const selected = (selectedIds || []).map(String);
+    if (!formateurs.length) {
+        container.innerHTML = '<p class="modal-hint" style="margin:0;">Aucun compte Formateur disponible.</p>';
+        return;
+    }
+    container.innerHTML = formateurs.map(f => `
+        <label style="display:flex;align-items:center;gap:8px;margin:0;">
+            <input type="checkbox" class="user-formateur-checkbox" value="${f.id}" style="width:auto;" ${selected.includes(String(f.id)) ? 'checked' : ''}>
+            ${escapeHtml(formateurLabel(f))}
+        </label>
+    `).join('');
+}
+
+function getSelectedFormateurIds() {
+    return Array.from(document.querySelectorAll('.user-formateur-checkbox:checked')).map(cb => cb.value);
 }
 
 function openUserModal(id) {
@@ -1237,7 +1263,7 @@ function openUserModal(id) {
     document.getElementById('user-password-label').textContent = 'Mot de passe (8 caractères min.)';
     document.getElementById('user-password-confirm-label').textContent = 'Vérification du mot de passe';
     document.getElementById('user-modal-title').textContent = 'Nouvel utilisateur';
-    populateFormateurReferentOptions(null);
+    populateFormateursCheckboxes([]);
 
     if (id) {
         const u = vm.users.find(x => String(x.id) === String(id));
@@ -1256,7 +1282,7 @@ function openUserModal(id) {
             document.getElementById('user-niveau-formation').value = u.niveau_formation || '';
             document.getElementById('user-option-pratique').value = u.option_pratique || '';
             document.getElementById('user-date-entree-formation').value = u.date_entree_formation || '';
-            populateFormateurReferentOptions(u.formateur_referent_id);
+            populateFormateursCheckboxes((u.formateurs || []).map(f => f.id));
             document.getElementById('user-password').required = false;
             document.getElementById('user-password-label').textContent = 'Nouveau mot de passe (laisser vide = inchangé)';
             document.getElementById('user-password-confirm-label').textContent = 'Vérification du nouveau mot de passe';
@@ -1323,7 +1349,7 @@ userForm.addEventListener('submit', async (e) => {
         actif: document.getElementById('user-actif').checked,
         niveau_formation: document.getElementById('user-niveau-formation').value,
         option_pratique: document.getElementById('user-option-pratique').value,
-        formateur_referent_id: document.getElementById('user-formateur-referent').value || null,
+        formateur_ids: getSelectedFormateurIds(),
         date_entree_formation: document.getElementById('user-date-entree-formation').value,
     };
 
