@@ -1,0 +1,17 @@
+# Dossier de données internes : bloqué par défaut (peut contenir
+# data/credentials.json en production, voir .gitignore), sauf le modèle
+# CSV public téléchargeable depuis la Banque de questions (admin/index.php).
+<IfModule mod_authz_core.c>
+    Require all denied
+    <Files "modele_import_questions.csv">
+        Require all granted
+    </Files>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+    <Files "modele_import_questions.csv">
+        Order allow,deny
+        Allow from all
+    </Files>
+</IfModule>

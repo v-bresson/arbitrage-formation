@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/session-config.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/permissions.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 // ===================================================================
 // Authentification unifiée : un seul point d'entrée (login) pour tous
@@ -68,18 +69,29 @@ if ($action === 'login') {
 
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
+    $ip = qa_client_ip();
+
+    $blockedMinutes = qa_login_blocked_minutes($pdo, $username, $ip);
+    if ($blockedMinutes !== null) {
+        http_response_code(429);
+        echo json_encode(['success' => false, 'message' => "Trop de tentatives échouées. Réessayez dans $blockedMinutes minutes."]);
+        exit;
+    }
 
     $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? AND actif = 1');
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        qa_clear_login_failures($pdo, $username, $ip);
+        session_regenerate_id(true);
         $role = qa_normalize_role($user['role']);
         $_SESSION['user_id'] = (int)$user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $role;
         echo json_encode(['success' => true, 'role' => $role]);
     } else {
+        qa_record_login_failure($pdo, $username, $ip);
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Identifiant ou mot de passe incorrect']);
     }

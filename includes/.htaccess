@@ -1,0 +1,10 @@
+# Fichiers PHP inclus par les points d'entrée (api/*.php, *.php racine),
+# jamais destinés à être requêtés directement — notamment db-config.php,
+# qui contient les identifiants de connexion à la base de données.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>

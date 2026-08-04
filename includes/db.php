@@ -508,6 +508,19 @@ function get_db() {
     }
 
     // ---------------------------------------------------------------
+    // Anti-brute-force sur la connexion (voir includes/rate_limit.php) :
+    // une ligne par tentative échouée, identifiant + IP, purgée après la
+    // fenêtre de blocage. Ne stocke jamais le mot de passe tenté.
+    // ---------------------------------------------------------------
+    $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(191) NOT NULL,
+        ip_address VARCHAR(45) NOT NULL,
+        attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_login_attempts_lookup (username, ip_address, attempted_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // ---------------------------------------------------------------
     // Suivi des migrations de schéma (voir qa_schema_migrations ci-dessus).
     // ---------------------------------------------------------------
     $pdo->exec("CREATE TABLE IF NOT EXISTS schema_migrations (

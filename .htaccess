@@ -1,0 +1,17 @@
+# Bloque l'accès direct au dossier .git si le dépôt est déployé tel quel
+# comme racine web (voir audit de sécurité) : évite l'exposition de tout
+# l'historique du code (y compris d'anciens secrets déjà retirés depuis).
+RewriteEngine On
+RewriteRule "(^|/)\.git" - [F,L]
+
+<IfModule mod_authz_core.c>
+    <DirectoryMatch "(^|/)\.git">
+        Require all denied
+    </DirectoryMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <DirectoryMatch "(^|/)\.git">
+        Order deny,allow
+        Deny from all
+    </DirectoryMatch>
+</IfModule>

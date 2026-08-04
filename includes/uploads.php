@@ -16,15 +16,20 @@ function qa_uploads_ensure_dir() {
 function qa_save_question_image($file) {
     $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
 
-    if (!isset($allowed[$file['type']])) {
-        throw new RuntimeException('Format d\'image non supporté (jpg, png, webp ou gif uniquement)');
-    }
     if ($file['size'] > 5 * 1024 * 1024) {
         throw new RuntimeException("L'image ne doit pas dépasser 5 Mo");
     }
 
+    // Le Content-Type envoyé par le navigateur ($file['type']) est
+    // falsifiable : on vérifie le type réel du contenu (finfo) plutôt que
+    // de lui faire confiance, avant de choisir l'extension de destination.
+    $realType = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file['tmp_name']);
+    if (!isset($allowed[$realType])) {
+        throw new RuntimeException('Format d\'image non supporté (jpg, png, webp ou gif uniquement)');
+    }
+
     qa_uploads_ensure_dir();
-    $ext = $allowed[$file['type']];
+    $ext = $allowed[$realType];
     $name = bin2hex(random_bytes(16)) . '.' . $ext;
     $dest = QA_UPLOADS_DIR . '/' . $name;
 

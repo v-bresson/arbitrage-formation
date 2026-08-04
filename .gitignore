@@ -5,3 +5,4 @@ uploads/questions/*
 includes/db-config.php
 backups/*
 !backups/.gitkeep
+!backups/.htaccess
